@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
 import { Lock, Unlock, Shield, AlertCircle, Search, ShieldCheck, ArrowRight, LogOut, Settings, User, Monitor, ChevronDown, RotateCcw, AlertTriangle, Home } from "lucide-react";
 import logo from "./assets/logo.png";
@@ -123,6 +123,15 @@ function App() {
   const [appToRemove, setAppToRemove] = useState<LockedApp | InstalledApp | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showResetFinal, setShowResetFinal] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
+  const [completingStep, setCompletingStep] = useState(0);
+  const [isUpdatingFromSettings, setIsUpdatingFromSettings] = useState(false);
+  const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
+  
+  const pinInputRef = useRef<HTMLInputElement>(null);
+  const confirmInputRef = useRef<HTMLInputElement>(null);
+  const mainInputRef = useRef<HTMLInputElement>(null);
+  const gatekeeperInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -184,8 +193,8 @@ function App() {
       window.location.reload();
     });
 
-    return () => { 
-      unlisten.then(f => f()); 
+    return () => {
+      unlisten.then(f => f());
       unlistenReload.then(f => f());
     };
   }, []);
@@ -202,8 +211,32 @@ function App() {
     }
     try {
       await invoke("setup_password", { password, mode: authMode });
-      setView("dashboard");
       setError(null);
+      
+      if (isUpdatingFromSettings) {
+        // Skip loading, show smart notification
+        setShowUpdateSuccess(true);
+        setView("dashboard");
+        setIsUpdatingFromSettings(false);
+        setTimeout(() => setShowUpdateSuccess(false), 3000);
+      } else {
+        // Initial Flow: Show Artificial Loading Experience
+        setIsCompleting(true);
+        const messages = [
+          "Great! You're all set.",
+          "We're preparing your perimeter..",
+          "One moment..",
+          "Here we go!"
+        ];
+        
+        for (let i = 0; i < messages.length; i++) {
+          setCompletingStep(i);
+          await new Promise(r => setTimeout(r, 1400));
+        }
+        
+        setView("dashboard");
+        setIsCompleting(false);
+      }
     } catch (err) { setError(String(err)); }
   };
 
@@ -328,29 +361,32 @@ function App() {
 
   useEffect(() => {
     const handleFocus = () => {
-      const pinInput = document.getElementById("pin-input");
-      const mainInput = document.getElementById("main-unlock-input");
-      if (pinInput) pinInput.focus();
-      else if (mainInput) mainInput.focus();
-    };
+      let target: HTMLInputElement | null = null;
 
-    const interval = setInterval(() => {
-      let target: HTMLElement | null = null;
-
-      if (view === "unlock" || view === "gatekeeper") {
-        target = document.getElementById("pin-input") || document.getElementById("main-unlock-input");
+      if (view === "unlock") {
+        target = mainInputRef.current;
+      } else if (view === "gatekeeper") {
+        target = gatekeeperInputRef.current;
       } else if (view === "setup") {
         if (authMode === "PIN") {
-          target = password.length < 4 ? document.getElementById("pin-input") : document.getElementById("confirm-input");
+          target = password.length < 4 ? pinInputRef.current : confirmInputRef.current;
+        } else {
+          // Password mode: focus first field if focused element isn't one of the password fields
+          if (document.activeElement !== pinInputRef.current && document.activeElement !== confirmInputRef.current) {
+            target = pinInputRef.current;
+          }
         }
-        // In Password mode, we don't force focus because the user needs to 
-        // click between the fields manually as they type.
       }
 
       if (target && document.activeElement !== target) {
-        (target as any).focus();
+        target.focus();
       }
-    }, 100);
+    };
+
+    handleFocus();
+    
+    // Periodically check focus to ensure it stays on the input
+    const interval = setInterval(handleFocus, 100);
 
     window.addEventListener("focus", handleFocus);
     window.addEventListener("click", handleFocus);
@@ -359,7 +395,7 @@ function App() {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("click", handleFocus);
     };
-  }, [view]);
+  }, [view, authMode, password.length]);
 
   if (view === null) return null;
 
@@ -369,37 +405,119 @@ function App() {
         {view === "onboarding" && (
           <motion.div
             key="onboarding"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4 }}
-            className={styles.unlockScreen}
-            style={{ maxWidth: '500px' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={styles.onboarding}
           >
-            <div className={styles.unlockIcon}><Shield size={80} strokeWidth={1} /></div>
-            <div style={{ textAlign: 'center' }}>
-              <h1 className={styles.mainTitle} style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>{APP_NAME}</h1>
-              <p className={styles.unlockSubtitle} style={{ color: 'var(--text-secondary)', letterSpacing: '0.1em' }}>PRECISION PRIVACY FOR WINDOWS</p>
-            </div>
-            <div className={styles.steps} style={{ width: '100%', margin: '2rem 0' }}>
+            <div className={styles.heroBackground} />
+
+            <motion.div
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className={styles.onboardingHeader}
+            >
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className={styles.heroIconWrapper}
+              >
+                <div className={styles.heroIconGlow} />
+                <Shield size={64} className={styles.unlockIcon} strokeWidth={1} />
+              </motion.div>
+              <h1 className={styles.onboardingTitle}>{APP_NAME}</h1>
+              <p className={styles.onboardingSubtitle}>Precision Privacy for Windows</p>
+            </motion.div>
+
+            <motion.div
+              className={styles.featureGrid}
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: { transition: { staggerChildren: 0.1 } }
+              }}
+            >
               {[
-                { n: 1, t: `Secure ${APP_NAME}`, d: "Set personal master credentials." },
-                { n: 2, t: "Map Workspace", d: "Select protected applications." },
-                { n: 3, t: "Active Shield", d: `${APP_NAME} handles the background.` }
-              ].map(s => (
-                <div key={s.n} className={styles.stepItem} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
-                  <div className={styles.stepNumber} style={{ background: 'var(--accent-color)' }}>{s.n}</div>
-                  <div>
-                    <div style={{ fontWeight: 600, color: '#fff' }}>{s.t}</div>
-                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>{s.d}</div>
-                  </div>
-                </div>
+                { icon: <Lock size={24} />, title: "Secure Access", desc: "Military-grade encryption for your master credentials." },
+                { icon: <Search size={24} />, title: "Smart Mapping", desc: "Instantly discover and protect any application." },
+                { icon: <ShieldCheck size={24} />, title: "Active Shield", desc: "Real-time background protection that never sleeps." }
+              ].map((f, i) => (
+                <motion.div
+                  key={i}
+                  variants={{
+                    hidden: { y: 20, opacity: 0 },
+                    visible: { y: 0, opacity: 1 }
+                  }}
+                  className={styles.featureCard}
+                >
+                  <div className={styles.featureIcon}>{f.icon}</div>
+                  <h3 className={styles.featureTitle}>{f.title}</h3>
+                  <p className={styles.featureDesc}>{f.desc}</p>
+                </motion.div>
               ))}
-            </div>
-            <button onClick={() => setView('setup')} className={styles.unlockAction}><span>Initialize Security</span><ArrowRight size={18} /></button>
+            </motion.div>
+
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5, duration: 0.5 }}
+              className={styles.onboardingActions}
+            >
+              <button
+                onClick={() => setView('setup')}
+                className={styles.primaryBtn}
+              >
+                <span>Initialize Security</span>
+                <ArrowRight size={20} />
+              </button>
+              <span className={styles.versionBadge}>VERSION 2.1.0 • SECURED BY QUANTUM</span>
+            </motion.div>
           </motion.div>
         )}
 
-        {view === "setup" && (
+        {isCompleting && (
+          <motion.div
+            key="completing"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={styles.unlockScreen}
+          >
+            <div className={styles.premiumLoader} style={{ width: '80px', height: '80px', marginBottom: '2rem' }}>
+              <motion.div
+                className={styles.loaderRing}
+                style={{ borderWidth: '3px' }}
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+              />
+              <Shield size={32} className={styles.loaderIcon} />
+            </div>
+            
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={completingStep}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.4 }}
+                style={{ textAlign: 'center' }}
+              >
+                <h2 className={styles.statusTitle} style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>
+                  {[
+                    "Great! You're all set.",
+                    "We're preparing your perimeter...",
+                    "One moment...",
+                    "Here we go!"
+                  ][completingStep]}
+                </h2>
+                <p className={styles.statusSubtitle}>Initializing secure environment</p>
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+        )}
+
+        {view === "setup" && !isCompleting && (
           <motion.div
             key="setup"
             initial={{ opacity: 0, y: 8 }}
@@ -417,14 +535,14 @@ function App() {
             </div>
 
             <div className={styles.tabs} style={{ marginBottom: '0.5rem' }}>
-              <button 
-                className={clsx(styles.tab, authMode === "PIN" && styles.tabActive)} 
+              <button
+                className={clsx(styles.tab, authMode === "PIN" && styles.tabActive)}
                 onClick={() => { setAuthMode("PIN"); setPassword(""); setConfirmPassword(""); setError(null); }}
               >
                 PIN
               </button>
-              <button 
-                className={clsx(styles.tab, authMode === "Password" && styles.tabActive)} 
+              <button
+                className={clsx(styles.tab, authMode === "Password" && styles.tabActive)}
                 onClick={() => { setAuthMode("Password"); setPassword(""); setConfirmPassword(""); setError(null); }}
               >
                 Password
@@ -433,47 +551,78 @@ function App() {
 
             <form onSubmit={handleSetup} className={styles.unlockInputWrapper} style={{ gap: '2rem', width: '100%' }}>
               {error && <div className={styles.errorMessage} style={{ position: 'absolute', top: '-3.5rem' }}><AlertCircle size={14} /> {error}</div>}
-              
+
               {authMode === "PIN" ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center', width: '100%' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', width: '100%' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', width: '100%', opacity: password.length < 4 ? 1 : 0.4, transition: 'all 0.3s ease' }}>
                     <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5 }}>New Secret PIN</span>
                     <div className={styles.pinDisplayGroup}>
                       {[0, 1, 2, 3].map(i => (
-                        <div key={i} className={clsx(styles.pinBox, password.length === i && styles.pinBoxActive, password.length > i && styles.pinBoxFilled)}>
+                        <div key={i} className={clsx(
+                          styles.pinBox, 
+                          password.length < 4 && password.length === i && styles.pinBoxActive, 
+                          password.length > i && styles.pinBoxFilled
+                        )}>
                           {password.length > i ? "●" : ""}
                         </div>
                       ))}
                     </div>
                   </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', width: '100%' }}>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', width: '100%', opacity: password.length === 4 ? 1 : 0.15, transition: 'all 0.3s ease' }}>
                     <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5 }}>Confirm Secret PIN</span>
                     <div className={styles.pinDisplayGroup}>
                       {[0, 1, 2, 3].map(i => (
-                        <div key={i} className={clsx(styles.pinBox, confirmPassword.length === i && styles.pinBoxActive, confirmPassword.length > i && styles.pinBoxFilled)}>
+                        <div key={i} className={clsx(
+                          styles.pinBox, 
+                          password.length === 4 && confirmPassword.length === i && styles.pinBoxActive, 
+                          confirmPassword.length > i && styles.pinBoxFilled
+                        )}>
                           {confirmPassword.length > i ? "●" : ""}
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <input id="pin-input" type="password" inputMode="numeric" pattern="\d*" maxLength={4} className={styles.hiddenInput} autoFocus autoComplete="one-time-code" name="new-pin-hidden" value={password} onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                    setPassword(val);
-                    if (val.length === 4) document.getElementById("confirm-input")?.focus();
-                  }} />
-                  <input id="confirm-input" type="password" inputMode="numeric" pattern="\d*" maxLength={4} className={styles.hiddenInput} autoComplete="one-time-code" name="confirm-pin-hidden" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value.replace(/\D/g, "").slice(0, 4))} />
+                  <input 
+                    ref={pinInputRef}
+                    type="password" 
+                    inputMode="numeric" 
+                    pattern="\d*" 
+                    maxLength={4} 
+                    className={styles.hiddenInput} 
+                    autoComplete="one-time-code" 
+                    name="new-pin-hidden" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value.replace(/\D/g, "").slice(0, 4))} 
+                  />
+                  <input 
+                    ref={confirmInputRef}
+                    type="password" 
+                    inputMode="numeric" 
+                    pattern="\d*" 
+                    maxLength={4} 
+                    className={styles.hiddenInput} 
+                    autoComplete="one-time-code" 
+                    name="confirm-pin-hidden" 
+                    value={confirmPassword} 
+                    onChange={(e) => setConfirmPassword(e.target.value.replace(/\D/g, "").slice(0, 4))} 
+                    onKeyDown={(e) => {
+                      if (e.key === "Backspace" && confirmPassword.length === 0) {
+                        setPassword(password.slice(0, -1));
+                      }
+                    }}
+                  />
                 </div>
               ) : (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5, marginLeft: '0.5rem' }}>Master Password</span>
-                    <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="••••••••" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <input ref={pinInputRef} type="password" className={styles.modernInput} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5, marginLeft: '0.5rem' }}>Confirm Password</span>
-                    <input id="confirm-input" type="password" className={styles.modernInput} placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                    <input ref={confirmInputRef} type="password" className={styles.modernInput} placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
                   </div>
                 </div>
               )}
@@ -483,7 +632,7 @@ function App() {
                   <button type="button" className={styles.modalCancel} style={{ flex: 1, height: '56px' }} onClick={() => setView('dashboard')}>Cancel</button>
                 )}
                 <button type="submit" className={styles.unlockAction} style={{ flex: 2, height: '56px', justifyContent: 'center' }}>
-                  <span>{allApps.length > 0 ? "Update Credentials" : `Continue Registration`}</span>
+                  <span>{allApps.length > 0 ? "Update" : `Continue Registration`}</span>
                   <ArrowRight size={18} />
                 </button>
               </div>
@@ -510,7 +659,7 @@ function App() {
                 </div>
               ) : (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-                  <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="Enter Password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <input ref={mainInputRef} type="password" className={styles.modernInput} placeholder="Enter Password" value={password} onChange={(e) => setPassword(e.target.value)} />
                   <motion.button
                     type="submit"
                     initial={{ opacity: 0, y: 5 }}
@@ -525,13 +674,12 @@ function App() {
               )}
               {authMode === "PIN" && (
                 <input
-                  id="main-unlock-input"
+                  ref={mainInputRef}
                   type="password"
                   inputMode="numeric"
                   pattern="\d*"
                   maxLength={4}
                   className={styles.hiddenInput}
-                  autoFocus
                   autoComplete="one-time-code"
                   name="pin-unlock-hidden"
                   value={password}
@@ -558,6 +706,19 @@ function App() {
             className={styles.dashboard}
           >
             <header className={styles.header}>
+              <AnimatePresence>
+                {showUpdateSuccess && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20, x: '-50%' }}
+                    animate={{ opacity: 1, y: 0, x: '-50%' }}
+                    exit={{ opacity: 0, y: -20, x: '-50%' }}
+                    className={styles.successToast}
+                  >
+                    <ShieldCheck size={16} />
+                    <span>Credentials Updated Successfully</span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className={styles.headerTitleGroup}>
                 <img src={logo} className={styles.headerLogo} alt={`${APP_NAME} Logo`} />
               </div>
@@ -719,7 +880,7 @@ function App() {
                             <span>Update your {authMode} to keep your {APP_NAME} secure.</span>
                           </div>
                           <div className={styles.settingControl}>
-                            <button className={styles.iconBtn} onClick={() => setView("setup")}>Update {authMode}</button>
+                            <button className={styles.iconBtn} onClick={() => { setIsUpdatingFromSettings(true); setView("setup"); }}>Update {authMode}</button>
                           </div>
                         </div>
                       </section>
@@ -947,7 +1108,7 @@ function App() {
                     </div>
                   ) : (
                     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-                      <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="Enter Password" autoFocus value={gatekeeperPIN} onChange={(e) => setGatekeeperPIN(e.target.value)} />
+                      <input ref={gatekeeperInputRef} type="password" className={styles.modernInput} placeholder="Enter Password" value={gatekeeperPIN} onChange={(e) => setGatekeeperPIN(e.target.value)} />
                       <motion.button
                         type="submit"
                         initial={{ opacity: 0, y: 5 }}
@@ -962,13 +1123,12 @@ function App() {
                   )}
                   {authMode === "PIN" && (
                     <input
-                      id="pin-input"
+                      ref={gatekeeperInputRef}
                       type="password"
                       inputMode="numeric"
                       pattern="\d*"
                       maxLength={4}
                       className={styles.hiddenInput}
-                      autoFocus
                       autoComplete="one-time-code"
                       name="gatekeeper-pin-hidden"
                       value={gatekeeperPIN}
