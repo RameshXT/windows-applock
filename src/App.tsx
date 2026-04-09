@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Unlock, Shield, AlertCircle, Search, Save, AppWindow, ShieldCheck, ArrowRight, LogOut, Settings, User, Monitor, ChevronDown } from "lucide-react";
+import { Lock, Unlock, Shield, AlertCircle, Search, ShieldCheck, ArrowRight, LogOut, Settings, User, Monitor, ChevronDown, RotateCcw, AlertTriangle } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import styles from "./App.module.css";
@@ -75,11 +75,12 @@ function App() {
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
   const [blockedApp, setBlockedApp] = useState<LockedApp | null>(null);
   const [gatekeeperPIN, setGatekeeperPIN] = useState("");
   const [isLaunching, setIsLaunching] = useState(false);
   const [appToRemove, setAppToRemove] = useState<LockedApp | InstalledApp | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showResetFinal, setShowResetFinal] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -195,10 +196,10 @@ function App() {
     }
 
     // Direct add
-    const newLocked = [...lockedApps, {
-      id: Math.random().toString(36).substr(2, 9),
+    const newLocked: LockedApp[] = [...lockedApps, {
+      id: Math.random().toString(36).substring(2, 9),
       name: app.name,
-      exec_name: (app as any).path || (app as any).exec_name,
+      exec_name: ((app as any).path || (app as any).exec_name) || "",
       icon: app.icon
     }];
     setLockedApps(newLocked);
@@ -495,12 +496,13 @@ function App() {
                       <Monitor size={18} /> System & Style
                     </button>
                     <div style={{ flex: 1 }} />
-                    <button className={styles.dangerBtnMinimal} onClick={async () => {
-                      if (confirm("Are you sure? This will wipe ALL settings and locks.")) {
-                        await invoke("reset_app");
-                        window.location.reload();
-                      }
-                    }}>Factory Reset</button>
+                    <button 
+                      className={styles.dangerBtnMinimal} 
+                      onClick={() => setShowResetConfirm(true)}
+                    >
+                      <RotateCcw size={18} />
+                      Factory Reset
+                    </button>
                   </aside>
 
                   <div className={styles.settingsContent}>
@@ -629,9 +631,29 @@ function App() {
                       </section>
                     )}
 
-                    <footer style={{ marginTop: 'auto', paddingTop: '2rem', display: 'flex', alignItems: 'center', opacity: 0.3 }}>
-                      <span style={{ fontSize: '0.75rem', fontStyle: 'italic' }}>GUARDIAN TECH • BUILD V1.0.4</span>
-                      <span style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.05)', padding: '0.2rem 0.6rem', borderRadius: '4px', fontSize: '0.6rem', color: 'var(--accent-color)', fontWeight: 700 }}>VERIFIED</span>
+                    <footer className={styles.settingsFooter}>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-color)', letterSpacing: '0.1em' }}>APPLOCK</span>
+                        <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
+                        <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#fff', opacity: 0.3 }}>V1.0.4</span>
+                      </div>
+                      
+                      <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
+                        <ShieldCheck size={12} color="var(--accent-color)" style={{ opacity: 0.5 }} />
+                        <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', color: '#fff', opacity: 0.3 }}>VERIFIED</span>
+                      </div>
+
+                      <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem' }}>
+                        <span style={{ opacity: 0.4 }}>Designed & Developed by</span>
+                        <a 
+                          href="https://rameshxt.pages.dev/" 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ color: '#EF233C', fontWeight: 700, textDecoration: 'none' }}
+                        >
+                          Ramesh XT
+                        </a>
+                      </div>
                     </footer>
                   </div>
                 </div>
@@ -641,7 +663,7 @@ function App() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4 }}
-                  className={activeTab === "settings" ? styles.settingsWrapper : styles.appList}
+                  className={styles.appList}
                 >
                   {isScanning ? <div className={styles.emptyState}>Scanning Workspace...</div> :
                     (activeTab === "all" ? lockedApps : allApps)
@@ -739,6 +761,51 @@ function App() {
               <div className={styles.modalActions}>
                 <button className={styles.modalCancel} onClick={() => setAppToRemove(null)}>Cancel</button>
                 <button className={styles.modalConfirm} onClick={confirmRemoval}>Remove Lock</button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showResetConfirm && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={styles.modalOverlay}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className={styles.modalCard}>
+              <div className={styles.modalIcon}><AlertTriangle size={40} color="#f59e0b" /></div>
+              <h3>Wipe All Data?</h3>
+              <p>Are you sure you want to reset Guardian? This will remove all your protected apps and security settings.</p>
+              <div className={styles.modalActions}>
+                <button className={styles.modalCancel} onClick={() => setShowResetConfirm(false)}>Cancel</button>
+                <button 
+                  className={styles.modalConfirm} 
+                  style={{ background: '#f59e0b' }} 
+                  onClick={() => {
+                    setShowResetConfirm(false);
+                    setShowResetFinal(true);
+                  }}
+                >
+                  Yes, Continue
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showResetFinal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={styles.modalOverlay}>
+            <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className={styles.modalCard}>
+              <div className={styles.modalIcon}><AlertCircle size={40} color="var(--error-color)" /></div>
+              <h3>Final Warning</h3>
+              <p>This action is <strong>irreversible</strong>. All your configurations will be permanently deleted and cannot be recovered.</p>
+              <div className={styles.modalActions}>
+                <button className={styles.modalCancel} onClick={() => setShowResetFinal(false)}>Abort</button>
+                <button 
+                  className={styles.modalConfirm} 
+                  onClick={async () => {
+                    await invoke("reset_app");
+                    window.location.reload();
+                  }}
+                >
+                  Reset Everything
+                </button>
               </div>
             </motion.div>
           </motion.div>

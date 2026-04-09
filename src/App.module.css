@@ -825,10 +825,9 @@
   width: 250px;
   background: rgba(0, 0, 0, 0.15);
   border-right: 1px solid var(--border-color);
-  padding: 2rem 1rem;
+  padding: 2rem 1rem 0; /* Remove bottom padding */
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
 }
 
 .settingsNavBtn {
@@ -861,11 +860,10 @@
 
 .settingsContent {
   flex: 1;
-  padding: 3.5rem 5rem;
+  padding: 3.5rem 5rem 0; /* Remove bottom padding */
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 4rem;
   scroll-behavior: smooth;
 }
 
@@ -1151,20 +1149,36 @@
 }
 
 .dangerBtnMinimal {
-  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-radius: 12px;
   color: var(--error-color);
-  font-size: 0.8125rem;
-  font-weight: 700;
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  transition: all 0.2s;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  background: rgba(239, 68, 68, 0.03);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  opacity: 0.7;
+  height: 44px;
   margin-top: auto;
-  opacity: 0.6;
+  margin-bottom: 2rem;
 }
 
 .dangerBtnMinimal:hover {
-  background: rgba(239, 68, 68, 0.05);
+  background: rgba(239, 68, 68, 0.08);
   opacity: 1;
+}
+
+.settingsFooter {
+  margin-top: auto;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  height: 44px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 /* Restore Media Queries */
@@ -1213,14 +1227,15 @@
 }
 
 .modalCard {
-  background: var(--card-bg);
+  background: #161618;
   border: 1px solid var(--border-color);
   border-radius: 2rem;
   padding: 2.5rem;
   max-width: 440px;
   width: 100%;
   text-align: center;
-  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 32px 64px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(20px);
 }
 
 .modalIcon {
