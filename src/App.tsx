@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Unlock, Shield, AlertCircle, Search, ShieldCheck, ArrowRight, LogOut, Settings, User, Monitor, ChevronDown, RotateCcw, AlertTriangle } from "lucide-react";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "framer-motion";
+import { Lock, Unlock, Shield, AlertCircle, Search, ShieldCheck, ArrowRight, LogOut, Settings, User, Monitor, ChevronDown, RotateCcw, AlertTriangle, Home } from "lucide-react";
+import logo from "./assets/logo.png";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import styles from "./App.module.css";
 import clsx from "clsx";
+
+const APP_NAME = "Windows AppLock";
 
 const GithubIcon = ({ size = 18 }: { size?: number }) => (
   <svg
@@ -25,7 +28,7 @@ const GithubIcon = ({ size = 18 }: { size?: number }) => (
 
 type View = "onboarding" | "setup" | "unlock" | "dashboard" | "gatekeeper";
 type AuthMode = "Password" | "PIN";
-type Tab = "all" | "system" | "settings";
+type Tab = "home" | "all" | "system" | "settings";
 
 interface InstalledApp {
   name: string;
@@ -38,6 +41,16 @@ interface LockedApp {
   name: string;
   exec_name: string;
   icon?: string | null;
+}
+
+interface AppConfig {
+  hashed_password?: string;
+  locked_apps: LockedApp[];
+  auth_mode?: AuthMode;
+  attempt_limit?: number;
+  lockout_duration?: number;
+  autostart?: boolean;
+  theme?: "dark" | "light";
 }
 
 const ModernSelect = ({ value, options, onChange }: { value: string, options: { label: string, value: string }[], onChange: (val: string) => void }) => {
@@ -81,9 +94,21 @@ const ModernSelect = ({ value, options, onChange }: { value: string, options: { 
   );
 };
 
+const CountUp = ({ value, color }: { value: number, color?: string }) => {
+  const count = useMotionValue(0);
+  const rounded = useTransform(count, (latest) => Math.round(latest));
+
+  useEffect(() => {
+    const controls = animate(count, value, { duration: 1.5, ease: "easeOut" });
+    return controls.stop;
+  }, [value]);
+
+  return <motion.span style={{ color }}>{rounded}</motion.span>;
+};
+
 function App() {
   const [view, setView] = useState<View | null>(null);
-  const [activeTab, setActiveTab] = useState<Tab>("all");
+  const [activeTab, setActiveTab] = useState<Tab>("home");
   const [authMode, setAuthMode] = useState<AuthMode>("PIN");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -115,6 +140,11 @@ function App() {
           }
           return;
         }
+
+        const cfg = await invoke<AppConfig>("get_config");
+        setConfig(cfg);
+        if (cfg.auth_mode) setAuthMode(cfg.auth_mode);
+        if (cfg.theme) document.documentElement.setAttribute("data-theme", cfg.theme);
 
         const isSetup = await invoke<boolean>("check_setup");
         if (!isSetup) {
@@ -149,7 +179,15 @@ function App() {
         setGatekeeperPIN("");
       }
     });
-    return () => { unlisten.then(f => f()); };
+
+    const unlistenReload = listen("reload-app", () => {
+      window.location.reload();
+    });
+
+    return () => { 
+      unlisten.then(f => f()); 
+      unlistenReload.then(f => f());
+    };
   }, []);
 
   const handleSetup = async (e: React.FormEvent) => {
@@ -241,8 +279,23 @@ function App() {
   };
 
   const [settingsTab, setSettingsTab] = useState("account");
-  const [lockoutLimit, setLockoutLimit] = useState("5");
-  const [lockoutDuration, setLockoutDuration] = useState("60");
+  const [config, setConfig] = useState<AppConfig>({
+    locked_apps: [],
+    auth_mode: "PIN",
+    attempt_limit: 5,
+    lockout_duration: 60,
+    theme: "dark"
+  });
+
+  const updateConfig = async (updates: Partial<AppConfig>) => {
+    const newConfig = { ...config, ...updates };
+    setConfig(newConfig);
+    if (updates.auth_mode) setAuthMode(updates.auth_mode);
+    if (updates.theme) document.documentElement.setAttribute("data-theme", updates.theme);
+    try {
+      await invoke("update_settings", { newConfig });
+    } catch (err) { setError(String(err)); }
+  };
 
   // Typing Placeholder Logic
   const sensitiveApps = ["WhatsApp", "Slack", "Teams", "Telegram", "Instagram", "VS Code"];
@@ -324,14 +377,14 @@ function App() {
           >
             <div className={styles.unlockIcon}><Shield size={80} strokeWidth={1} /></div>
             <div style={{ textAlign: 'center' }}>
-              <h1 className={styles.mainTitle} style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>Guardian</h1>
+              <h1 className={styles.mainTitle} style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>{APP_NAME}</h1>
               <p className={styles.unlockSubtitle} style={{ color: 'var(--text-secondary)', letterSpacing: '0.1em' }}>PRECISION PRIVACY FOR WINDOWS</p>
             </div>
             <div className={styles.steps} style={{ width: '100%', margin: '2rem 0' }}>
               {[
-                { n: 1, t: "Secure Vault", d: "Set personal master credentials." },
+                { n: 1, t: `Secure ${APP_NAME}`, d: "Set personal master credentials." },
                 { n: 2, t: "Map Workspace", d: "Select protected applications." },
-                { n: 3, t: "Active Shield", d: "Guardian handles the background." }
+                { n: 3, t: "Active Shield", d: `${APP_NAME} handles the background.` }
               ].map(s => (
                 <div key={s.n} className={styles.stepItem} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-color)' }}>
                   <div className={styles.stepNumber} style={{ background: 'var(--accent-color)' }}>{s.n}</div>
@@ -353,28 +406,58 @@ function App() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4 }}
             className={styles.unlockScreen}
+            style={{ maxWidth: '440px' }}
           >
-            <div className={styles.unlockTitle}>Security Initialization</div>
-            <div className={styles.modeToggle} style={{ background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '12px', marginBottom: '1rem' }}>
-              <button className={clsx(styles.modeBtn, authMode === "PIN" && styles.modeBtnActive)} onClick={() => { setAuthMode("PIN"); setPassword(""); setConfirmPassword(""); setError(null); }}>PIN</button>
-              <button className={clsx(styles.modeBtn, authMode === "Password" && styles.modeBtnActive)} onClick={() => { setAuthMode("Password"); setPassword(""); setConfirmPassword(""); setError(null); }}>Password</button>
+            <div className={styles.gatekeeperBrand} style={{ marginBottom: '1rem' }}>
+              <div className={styles.statusCircle} style={{ width: '64px', height: '64px', marginBottom: '1.5rem' }}>
+                <Shield size={32} strokeWidth={1.5} />
+              </div>
+              <h1 className={styles.statusTitle} style={{ fontSize: '1.75rem' }}>Security Protocol</h1>
+              <p className={styles.statusSubtitle}>Configure your master authentication method</p>
             </div>
-            <form onSubmit={handleSetup} className={styles.unlockInputWrapper} style={{ gap: '1.5rem' }}>
+
+            <div className={styles.tabs} style={{ marginBottom: '0.5rem' }}>
+              <button 
+                className={clsx(styles.tab, authMode === "PIN" && styles.tabActive)} 
+                onClick={() => { setAuthMode("PIN"); setPassword(""); setConfirmPassword(""); setError(null); }}
+              >
+                PIN
+              </button>
+              <button 
+                className={clsx(styles.tab, authMode === "Password" && styles.tabActive)} 
+                onClick={() => { setAuthMode("Password"); setPassword(""); setConfirmPassword(""); setError(null); }}
+              >
+                Password
+              </button>
+            </div>
+
+            <form onSubmit={handleSetup} className={styles.unlockInputWrapper} style={{ gap: '2rem', width: '100%' }}>
               {error && <div className={styles.errorMessage} style={{ position: 'absolute', top: '-3.5rem' }}><AlertCircle size={14} /> {error}</div>}
+              
               {authMode === "PIN" ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>New PIN</span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center', width: '100%' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', width: '100%' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5 }}>New Secret PIN</span>
                     <div className={styles.pinDisplayGroup}>
-                      {[0, 1, 2, 3].map(i => <div key={i} className={clsx(styles.pinBox, password.length === i && styles.pinBoxActive, password.length > i && styles.pinBoxFilled)}>{password.length > i ? "●" : ""}</div>)}
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} className={clsx(styles.pinBox, password.length === i && styles.pinBoxActive, password.length > i && styles.pinBoxFilled)}>
+                          {password.length > i ? "●" : ""}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Confirm PIN</span>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', width: '100%' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5 }}>Confirm Secret PIN</span>
                     <div className={styles.pinDisplayGroup}>
-                      {[0, 1, 2, 3].map(i => <div key={i} className={clsx(styles.pinBox, confirmPassword.length === i && styles.pinBoxActive, confirmPassword.length > i && styles.pinBoxFilled)}>{confirmPassword.length > i ? "●" : ""}</div>)}
+                      {[0, 1, 2, 3].map(i => (
+                        <div key={i} className={clsx(styles.pinBox, confirmPassword.length === i && styles.pinBoxActive, confirmPassword.length > i && styles.pinBoxFilled)}>
+                          {confirmPassword.length > i ? "●" : ""}
+                        </div>
+                      ))}
                     </div>
                   </div>
+
                   <input id="pin-input" type="password" inputMode="numeric" pattern="\d*" maxLength={4} className={styles.hiddenInput} autoFocus autoComplete="one-time-code" name="new-pin-hidden" value={password} onChange={(e) => {
                     const val = e.target.value.replace(/\D/g, "").slice(0, 4);
                     setPassword(val);
@@ -384,23 +467,30 @@ function App() {
                 </div>
               ) : (
                 <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="Master Password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
-                  <input id="confirm-input" type="password" className={styles.modernInput} placeholder="Confirm Password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5, marginLeft: '0.5rem' }}>Master Password</span>
+                    <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="••••••••" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em', opacity: 0.5, marginLeft: '0.5rem' }}>Confirm Password</span>
+                    <input id="confirm-input" type="password" className={styles.modernInput} placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+                  </div>
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '1rem', width: '100%' }}>
+              <div style={{ display: 'flex', gap: '1rem', width: '100%', marginTop: '1rem' }}>
                 {allApps.length > 0 && (
-                  <button type="button" className={styles.iconBtn} style={{ flex: 1 }} onClick={() => setView('dashboard')}>Cancel</button>
+                  <button type="button" className={styles.modalCancel} style={{ flex: 1, height: '56px' }} onClick={() => setView('dashboard')}>Cancel</button>
                 )}
-                <button type="submit" className={styles.unlockAction} style={{ flex: 2 }}>
-                  <span>{allApps.length > 0 ? "Update Credential" : "Initialize Vault"}</span>
+                <button type="submit" className={styles.unlockAction} style={{ flex: 2, height: '56px', justifyContent: 'center' }}>
+                  <span>{allApps.length > 0 ? "Update Credentials" : `Continue Registration`}</span>
                   <ArrowRight size={18} />
                 </button>
               </div>
             </form>
           </motion.div>
         )}
+
 
         {view === "unlock" && (
           <motion.div
@@ -411,14 +501,28 @@ function App() {
             className={styles.unlockScreen}
           >
             <div className={styles.unlockIcon}><Shield size={64} strokeWidth={1.5} /></div>
-            <div className={styles.unlockTitle}>Vault Access</div>
+            <div className={styles.unlockTitle}>{APP_NAME} Access</div>
             <form onSubmit={handleUnlock} className={styles.unlockInputWrapper}>
               {error && <div className={styles.errorMessage} style={{ position: 'absolute', top: '-3rem' }}><AlertCircle size={14} /> {error}</div>}
               {authMode === "PIN" ? (
                 <div className={styles.pinDisplayGroup}>
                   {[0, 1, 2, 3].map(i => <div key={i} className={clsx(styles.pinBox, password.length === i && styles.pinBoxActive, password.length > i && styles.pinBoxFilled)}>{password.length > i ? "●" : ""}</div>)}
                 </div>
-              ) : <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="Enter Password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />}
+              ) : (
+                <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                  <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="Enter Password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} />
+                  <motion.button
+                    type="submit"
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: password.length > 0 ? 1 : 0.5, y: 0, scale: password.length > 0 ? 1 : 0.98 }}
+                    className={styles.unlockAction}
+                    disabled={password.length === 0}
+                  >
+                    <span>Unlock</span>
+                    <ArrowRight size={18} />
+                  </motion.button>
+                </div>
+              )}
               {authMode === "PIN" && (
                 <input
                   id="main-unlock-input"
@@ -441,7 +545,6 @@ function App() {
                   }}
                 />
               )}
-              <button type="submit" className={styles.unlockAction}><span>Unlock Vault</span><ArrowRight size={18} /></button>
             </form>
           </motion.div>
         )}
@@ -456,33 +559,38 @@ function App() {
           >
             <header className={styles.header}>
               <div className={styles.headerTitleGroup}>
-                <span className={styles.brandLabel}>AppLock</span>
-                <h1 className={styles.mainTitle}>Vault</h1>
+                <img src={logo} className={styles.headerLogo} alt={`${APP_NAME} Logo`} />
               </div>
 
               <div className={styles.tabs}>
                 <button
+                  className={clsx(styles.tab, activeTab === "home" && styles.tabActive)}
+                  onClick={() => setActiveTab("home")}
+                >
+                  <Home size={18} /> <span>Home</span>
+                </button>
+                <button
                   className={clsx(styles.tab, activeTab === "all" && styles.tabActive)}
                   onClick={() => setActiveTab("all")}
                 >
-                  <Lock size={16} /> Locked Apps
+                  <Lock size={18} /> <span>Locked Apps</span>
                 </button>
                 <button
                   className={clsx(styles.tab, activeTab === "system" && styles.tabActive)}
                   onClick={() => setActiveTab("system")}
                 >
-                  <Unlock size={16} /> Unlocked Apps
+                  <Unlock size={18} /> <span>Unlocked Apps</span>
                 </button>
                 <button
                   className={clsx(styles.tab, activeTab === "settings" && styles.tabActive)}
                   onClick={() => setActiveTab("settings")}
                 >
-                  <Settings size={16} /> Settings
+                  <Settings size={18} /> <span>Settings</span>
                 </button>
               </div>
 
               <div className={styles.headerActions}>
-                {activeTab !== "settings" && (
+                {activeTab !== "settings" && activeTab !== "home" && (
                   <div className={styles.searchBar}>
                     <Search size={16} color="var(--text-secondary)" />
                     <input
@@ -499,9 +607,67 @@ function App() {
               </div>
             </header>
 
+            <div className={styles.listDivider}>
+              <div className={styles.dividerLine} />
+              {(activeTab === "all" || activeTab === "system") && !isScanning && (() => {
+                const count = (activeTab === "all" ? lockedApps : allApps).filter(app => app.name.toLowerCase().includes(search.toLowerCase())).length;
+                return (
+                  <span className={styles.dividerText}>
+                    {count === 0 ? "No Apps Found" : `${count} ${count === 1 ? "App" : "Apps"} Found`}
+                  </span>
+                )
+              })()}
+              {(activeTab === "all" || activeTab === "system") && !isScanning && <div className={styles.dividerLine} />}
+            </div>
 
             <main className={styles.mainScrollArea}>
-              {activeTab === "settings" ? (
+              {activeTab === "home" ? (
+                <motion.div
+                  key="home"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className={styles.homeMinimal}
+                >
+                  <div className={styles.homeStatusSection}>
+                    <div className={styles.statusCircle}>
+                      <ShieldCheck size={48} strokeWidth={1.5} />
+                    </div>
+                    <div className={styles.statusInfo}>
+                      <h2 className={styles.statusTitle}>{APP_NAME} Active</h2>
+                      <p className={styles.statusSubtitle}>System perimeter is currently secured</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.minimalStats}>
+                    <div className={styles.minStat}>
+                      {isScanning ? (
+                        <div className={styles.skeletonValue} />
+                      ) : (
+                        <span className={styles.minStatValue}>
+                          <CountUp value={allApps.length} />
+                        </span>
+                      )}
+                      <span className={styles.minStatLabel}>Total Apps</span>
+                    </div>
+                    <div className={styles.minStatDivider} />
+                    <div className={styles.minStat}>
+                      {isScanning ? (
+                        <div className={styles.skeletonValue} />
+                      ) : (
+                        <span className={styles.minStatValue}>
+                          <CountUp value={lockedApps.length} color="var(--accent-color)" />
+                        </span>
+                      )}
+                      <span className={styles.minStatLabel}>Locked</span>
+                    </div>
+                  </div>
+
+                  <button className={styles.minimalAction} onClick={() => setActiveTab("all")}>
+                    Manage Protection <ArrowRight size={18} />
+                  </button>
+                </motion.div>
+              ) : activeTab === "settings" ? (
                 <div className={styles.settingsContainer}>
                   <aside className={styles.settingsSidebar}>
                     <button className={clsx(styles.settingsNavBtn, settingsTab === "account" && styles.settingsNavBtnActive)} onClick={() => setSettingsTab("account")}>
@@ -550,7 +716,7 @@ function App() {
                         <div className={styles.settingRow}>
                           <div className={styles.settingLabel}>
                             <span>Security Credential</span>
-                            <span>Update your {authMode} to keep your vault secure.</span>
+                            <span>Update your {authMode} to keep your {APP_NAME} secure.</span>
                           </div>
                           <div className={styles.settingControl}>
                             <button className={styles.iconBtn} onClick={() => setView("setup")}>Update {authMode}</button>
@@ -563,7 +729,7 @@ function App() {
                       <section className={styles.settingsGroup}>
                         <div className={styles.settingsHeader}>
                           <h2>Security Policy</h2>
-                          <p>Configure how the vault responds to intrusions.</p>
+                          <p>Configure how {APP_NAME} responds to intrusions.</p>
                         </div>
 
                         <div className={styles.settingRow}>
@@ -573,8 +739,8 @@ function App() {
                           </div>
                           <div className={styles.settingControl}>
                             <ModernSelect
-                              value={lockoutLimit}
-                              onChange={setLockoutLimit}
+                              value={String(config.attempt_limit)}
+                              onChange={(val) => updateConfig({ attempt_limit: parseInt(val) })}
                               options={[
                                 { label: "3 Attempts", value: "3" },
                                 { label: "5 Attempts", value: "5" },
@@ -591,8 +757,8 @@ function App() {
                           </div>
                           <div className={styles.settingControl}>
                             <ModernSelect
-                              value={lockoutDuration}
-                              onChange={setLockoutDuration}
+                              value={String(config.lockout_duration)}
+                              onChange={(val) => updateConfig({ lockout_duration: parseInt(val) })}
                               options={[
                                 { label: "30 Seconds", value: "30" },
                                 { label: "1 Minute", value: "60" },
@@ -608,31 +774,18 @@ function App() {
                       <section className={styles.settingsGroup}>
                         <div className={styles.settingsHeader}>
                           <h2>System & Appearance</h2>
-                          <p>Personalize your workspace and launch behavior.</p>
+                          <p>Personalize your workspace and {APP_NAME} behavior.</p>
                         </div>
 
                         <div className={styles.settingRow}>
                           <div className={styles.settingLabel}>
                             <span>Launch at Startup</span>
-                            <span>Automatically wake the vault when Windows starts.</span>
+                            <span>Automatically wake {APP_NAME} when Windows starts.</span>
                           </div>
                           <div className={styles.settingControl}>
                             <div className={styles.miniToggle}>
-                              <button>Enable</button>
-                              <button className={styles.miniToggleActive}>Disable</button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className={styles.settingRow}>
-                          <div className={styles.settingLabel}>
-                            <span>Self-Lock</span>
-                            <span>Require authentication to open the dashboard.</span>
-                          </div>
-                          <div className={styles.settingControl}>
-                            <div className={styles.miniToggle}>
-                              <button className={styles.miniToggleActive}>Enable</button>
-                              <button>Disable</button>
+                              <button className={clsx(config.autostart && styles.miniToggleActive)} onClick={() => updateConfig({ autostart: true })}>Enable</button>
+                              <button className={clsx(!config.autostart && styles.miniToggleActive)} onClick={() => updateConfig({ autostart: false })}>Disable</button>
                             </div>
                           </div>
                         </div>
@@ -644,8 +797,8 @@ function App() {
                           </div>
                           <div className={styles.settingControl}>
                             <div className={styles.miniToggle}>
-                              <button className={styles.miniToggleActive}>Dark</button>
-                              <button>Light</button>
+                              <button className={clsx(config.theme === "dark" && styles.miniToggleActive)} onClick={() => updateConfig({ theme: "dark" })}>Dark</button>
+                              <button className={clsx(config.theme === "light" && styles.miniToggleActive)} onClick={() => updateConfig({ theme: "light" })}>Light</button>
                             </div>
                           </div>
                         </div>
@@ -656,7 +809,7 @@ function App() {
                       <section className={styles.settingsGroup}>
                         <div className={styles.settingsHeader}>
                           <h2>Contribution</h2>
-                          <p>Guardian is open source. Help us shape the future of privacy.</p>
+                          <p>{APP_NAME} is open source. Help us shape the future of privacy.</p>
                         </div>
 
                         <div className={styles.settingRow}>
@@ -666,7 +819,7 @@ function App() {
                           </div>
                           <div className={styles.settingControl}>
                             <a
-                              href="https://github.com/RameshXT/applock"
+                              href="https://github.com/RameshXT/windows-applock"
                               target="_blank"
                               rel="noopener noreferrer"
                               className={styles.iconBtn}
@@ -682,7 +835,7 @@ function App() {
 
                     <footer className={styles.settingsFooter}>
                       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-color)', letterSpacing: '0.1em' }}>APPLOCK</span>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--accent-color)', letterSpacing: '0.1em' }}>{APP_NAME.toUpperCase()}</span>
                         <div style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'rgba(255,255,255,0.2)' }} />
                         <span style={{ fontSize: '0.7rem', fontWeight: 500, color: '#fff', opacity: 0.3 }}>V1.0.4</span>
                       </div>
@@ -698,7 +851,7 @@ function App() {
                           href="https://rameshxt.pages.dev/"
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ color: '#EF233C', fontWeight: 700, textDecoration: 'none' }}
+                          className={styles.developerLink}
                         >
                           Ramesh XT
                         </a>
@@ -712,12 +865,12 @@ function App() {
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4 }}
-                  className={styles.appList}
+                  className={styles.appListWrapper}
                 >
                   {isScanning ? (
                     <div className={styles.emptyState}>
                       <div className={styles.premiumLoader}>
-                        <motion.div 
+                        <motion.div
                           className={styles.loaderRing}
                           animate={{ rotate: 360 }}
                           transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
@@ -727,35 +880,42 @@ function App() {
                       <span className={styles.loaderText}>Scanning Workspace</span>
                     </div>
                   ) : (
-                    (activeTab === "all" ? lockedApps : allApps)
-                      .filter(app => app.name.toLowerCase().includes(search.toLowerCase()))
-                      .map(app => {
-                        const isLocked = lockedApps.some(la => la.name === app.name);
-                        return (
-                          <motion.div
-                            layout
-                            key={app.name}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ duration: 0.4 }}
-                            whileHover={{ y: -2 }}
-                            className={clsx(styles.appCard, isLocked && styles.appCardLocked)}
-                            onClick={() => toggleApp(app)}
-                          >
-                            {isLocked && <div className={styles.lockedBadge}><Lock size={8} /> LOCKED</div>}
-                            <div className={styles.appIconContainer}>
-                              {app.icon ? <img src={app.icon} className={styles.appIconImg} alt="" /> : <Shield size={24} color={isLocked ? "var(--accent-color)" : "var(--text-secondary)"} style={{ opacity: isLocked ? 1 : 0.3 }} />}
-                            </div>
-                            <div className={styles.appInfo}>
-                              <div className={styles.appName}>{app.name}</div>
-                              <div className={styles.appPath}>{(app as any).exec_name || (app as any).path}</div>
-                            </div>
-                            <div className={styles.lockIndicator}>
-                              {isLocked ? <Lock size={18} className={styles.lockedIcon} /> : <Unlock size={18} style={{ opacity: 0.2 }} />}
-                            </div>
-                          </motion.div>
-                        );
-                      }))}
+                    <div className={styles.appList}>
+                      {(activeTab === "all" ? lockedApps : allApps)
+                        .filter(app => app.name.toLowerCase().includes(search.toLowerCase()))
+                        .map(app => {
+                          const isLocked = lockedApps.some(la => la.name === app.name);
+                          return (
+                            <motion.div
+                              layout
+                              key={app.name}
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              transition={{ duration: 0.4 }}
+                              whileHover={{ y: -2 }}
+                              className={clsx(styles.appCard, isLocked && styles.appCardLocked)}
+                              onClick={() => toggleApp(app)}
+                            >
+                              {isLocked && <div className={styles.lockedBadge}><Lock size={8} /> LOCKED</div>}
+                              <div className={styles.appIconContainer}>
+                                {app.icon ? (
+                                  <img src={app.icon} className={styles.appIconImg} alt="" />
+                                ) : (
+                                  <img src={logo} className={styles.appIconImg} style={{ opacity: isLocked ? 1 : 0.4 }} alt="" />
+                                )}
+                              </div>
+                              <div className={styles.appInfo}>
+                                <div className={styles.appName}>{app.name}</div>
+                                <div className={styles.appPath}>{(app as any).exec_name || (app as any).path}</div>
+                              </div>
+                              <div className={styles.lockIndicator}>
+                                {isLocked ? <Lock size={18} className={styles.lockedIcon} /> : <Unlock size={18} style={{ opacity: 0.2 }} />}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                    </div>
+                  )}
                 </motion.div>
               )}
             </main>
@@ -777,33 +937,51 @@ function App() {
               <h2 className={styles.gatekeeperTitle}>{blockedApp?.name}</h2>
               <p className={styles.gatekeeperSubtitle}>Secure Authentication Required</p>
             </div>
-            <form onSubmit={handleGatekeeperUnlock} className={styles.gatekeeperForm}>
-              {error && <div className={styles.errorMessage}><AlertCircle size={14} /> {error}</div>}
+            <form onSubmit={handleGatekeeperUnlock} className={styles.gatekeeperForm} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              {error && <div className={styles.errorMessage} style={{ marginBottom: '2rem' }}><AlertCircle size={14} /> {error}</div>}
               {isLaunching ? <div className={styles.launchingState}><div className={styles.spinner} /><span>Launching...</span></div> : (
                 <>
-                  <div className={styles.pinDisplayGroup}>
-                    {[0, 1, 2, 3].map(i => <div key={i} className={clsx(styles.pinBox, gatekeeperPIN.length === i && styles.pinBoxActive, gatekeeperPIN.length > i && styles.pinBoxFilled)}>{gatekeeperPIN.length > i ? "●" : ""}</div>)}
-                  </div>
-                  <input
-                    id="pin-input"
-                    type="password"
-                    inputMode="numeric"
-                    pattern="\d*"
-                    maxLength={4}
-                    className={styles.hiddenInput}
-                    autoFocus
-                    autoComplete="one-time-code"
-                    name="gatekeeper-pin-hidden"
-                    value={gatekeeperPIN}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                      setGatekeeperPIN(val);
-                      if (val.length === 4) {
-                        const form = (e.target as any).form;
-                        if (form) setTimeout(() => form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })), 100);
-                      }
-                    }}
-                  />
+                  {authMode === "PIN" ? (
+                    <div className={styles.pinDisplayGroup}>
+                      {[0, 1, 2, 3].map(i => <div key={i} className={clsx(styles.pinBox, gatekeeperPIN.length === i && styles.pinBoxActive, gatekeeperPIN.length > i && styles.pinBoxFilled)}>{gatekeeperPIN.length > i ? "●" : ""}</div>)}
+                    </div>
+                  ) : (
+                    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+                      <input id="main-unlock-input" type="password" className={styles.modernInput} placeholder="Enter Password" autoFocus value={gatekeeperPIN} onChange={(e) => setGatekeeperPIN(e.target.value)} />
+                      <motion.button
+                        type="submit"
+                        initial={{ opacity: 0, y: 5 }}
+                        animate={{ opacity: gatekeeperPIN.length > 0 ? 1 : 0.5, y: 0, scale: gatekeeperPIN.length > 0 ? 1 : 0.98 }}
+                        className={styles.unlockAction}
+                        disabled={gatekeeperPIN.length === 0}
+                      >
+                        <span>Unlock App</span>
+                        <ArrowRight size={18} />
+                      </motion.button>
+                    </div>
+                  )}
+                  {authMode === "PIN" && (
+                    <input
+                      id="pin-input"
+                      type="password"
+                      inputMode="numeric"
+                      pattern="\d*"
+                      maxLength={4}
+                      className={styles.hiddenInput}
+                      autoFocus
+                      autoComplete="one-time-code"
+                      name="gatekeeper-pin-hidden"
+                      value={gatekeeperPIN}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, "").slice(0, 4);
+                        setGatekeeperPIN(val);
+                        if (val.length === 4) {
+                          const form = (e.target as any).form;
+                          if (form) setTimeout(() => form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true })), 100);
+                        }
+                      }}
+                    />
+                  )}
                 </>
               )}
             </form>
@@ -818,7 +996,7 @@ function App() {
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className={styles.modalCard}>
               <div className={styles.modalIcon}><AlertCircle size={40} color="var(--error-color)" /></div>
               <h3>Remove Protection?</h3>
-              <p>Are you sure you want to unlock <strong>{appToRemove.name}</strong>? This application will no longer be protected by your vault.</p>
+              <p>Are you sure you want to unlock <strong>{appToRemove.name}</strong>? This application will no longer be protected by {APP_NAME}.</p>
               <div className={styles.modalActions}>
                 <button className={styles.modalCancel} onClick={() => setAppToRemove(null)}>Cancel</button>
                 <button className={styles.modalConfirm} onClick={confirmRemoval}>Remove Lock</button>
@@ -832,7 +1010,7 @@ function App() {
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} className={styles.modalCard}>
               <div className={styles.modalIcon}><AlertTriangle size={40} color="#f59e0b" /></div>
               <h3>Wipe All Data?</h3>
-              <p>Are you sure you want to reset Guardian? This will remove all your protected apps and security settings.</p>
+              <p>Are you sure you want to reset {APP_NAME}? This will remove all your protected apps and security settings.</p>
               <div className={styles.modalActions}>
                 <button className={styles.modalCancel} onClick={() => setShowResetConfirm(false)}>Cancel</button>
                 <button

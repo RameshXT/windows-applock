@@ -36,7 +36,6 @@ struct AppConfig {
     lockout_duration: Option<u32>, // in seconds
     autostart: Option<bool>,
     theme: Option<String>, // "dark" | "light"
-    lock_applock: Option<bool>,
     wrong_attempts: Option<u32>,
     lockout_until: Option<u64>, // timestamp
 }
@@ -383,9 +382,11 @@ pub fn run() {
             let config_file = config_path.join("config.enc");
             
             let config = load_config(&config_file);
+            let is_unlocked = false;
+            
             let state = Arc::new(AppState {
                 config: Mutex::new(config),
-                is_unlocked: Mutex::new(false),
+                is_unlocked: Mutex::new(is_unlocked),
                 config_path: config_file,
                 authorized_pids: Mutex::new(std::collections::HashSet::new()),
                 recently_killed: Mutex::new(std::collections::HashMap::new()),

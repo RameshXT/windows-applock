@@ -16,7 +16,7 @@
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   --border-color: #27272a;
-  --error-color: #ef4444;
+  --error-color: #EF233C;
   --success-color: #22c55e;
 
   --font-inter: 'Inter', sans-serif;
@@ -24,6 +24,18 @@
 
   font-family: var(--font-inter);
   color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg-color: #f8fafc;
+  --surface-color: #ffffff;
+  --surface-hover: #f1f5f9;
+  --accent-color: #2563eb;
+  --accent-hover: #1d4ed8;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  color-scheme: light;
 }
 
 * {
@@ -51,6 +63,11 @@ button {
 input {
   font-family: inherit;
   outline: none;
+}
+
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
 }
 
 ::selection {
