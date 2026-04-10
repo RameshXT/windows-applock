@@ -29,6 +29,8 @@ pub fn run() {
                 is_unlocked: Mutex::new(is_unlocked),
                 config_path: config_file,
                 authorized_pids: Mutex::new(std::collections::HashSet::new()),
+                authorized_paths: Mutex::new(std::collections::HashMap::new()),
+                last_success_time: Mutex::new(None),
                 recently_killed: Mutex::new(std::collections::HashMap::new()),
                 active_blocked_app: Mutex::new(None),
             });
@@ -60,10 +62,13 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
+                let state = window.state::<Arc<AppState>>();
                 if window.label() == "main" {
-                    let state = window.state::<Arc<AppState>>();
                     let mut unlocked = state.is_unlocked.lock().unwrap();
                     *unlocked = false;
+                } else if window.label() == "gatekeeper" {
+                    let mut active = state.active_blocked_app.lock().unwrap();
+                    *active = None;
                 }
             }
         })
@@ -80,7 +85,8 @@ pub fn run() {
             commands::get_blocked_app,
             commands::get_config,
             commands::update_settings,
-            commands::reset_app
+            commands::reset_app,
+            commands::verify_gatekeeper
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

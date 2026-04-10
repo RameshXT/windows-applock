@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "gatekeeper",
+  "description": "Capability for the gatekeeper security popup window",
+  "windows": ["gatekeeper"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-unminimize"
+  ]
+}

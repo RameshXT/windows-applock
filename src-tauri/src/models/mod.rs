@@ -3,7 +3,6 @@ use std::sync::Mutex;
 use std::path::PathBuf;
 use std::collections::{HashSet, HashMap};
 use std::time::Instant;
-use sysinfo::Pid;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub enum AuthMode {
@@ -37,7 +36,9 @@ pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub is_unlocked: Mutex<bool>,
     pub config_path: PathBuf,
-    pub authorized_pids: Mutex<HashSet<Pid>>,
-    pub recently_killed: Mutex<HashMap<Pid, Instant>>,
+    pub authorized_pids: Mutex<HashSet<u32>>,
+    pub authorized_paths: Mutex<HashMap<String, Instant>>,
+    pub last_success_time: Mutex<Option<Instant>>,
+    pub recently_killed: Mutex<HashMap<u32, Instant>>,
     pub active_blocked_app: Mutex<Option<LockedApp>>,
 }

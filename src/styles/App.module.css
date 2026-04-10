@@ -1078,6 +1078,60 @@
   background: radial-gradient(circle at 50% 50%, #1a1c22 0%, #0a0b0d 100%) !important;
 }
 
+.attemptInfo {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  letter-spacing: 0.15em;
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.lockoutContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 2rem 0;
+  width: 100%;
+}
+
+.lockoutIcon {
+  width: 90px;
+  height: 90px;
+  background: rgba(239, 35, 60, 0.1);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(239, 35, 60, 0.2);
+}
+
+.lockoutTitle {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.lockoutText {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-align: center;
+  margin-top: -1rem;
+}
+
+.countdownTimer {
+  font-size: 4rem;
+  font-weight: 900;
+  font-family: var(--font-geist);
+  color: #EF233C;
+  text-shadow: 0 0 40px rgba(239, 35, 60, 0.4);
+}
+
 .gatekeeperFooter {
   margin-top: 3rem;
   display: flex;

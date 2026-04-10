@@ -23,4 +23,6 @@ export interface AppConfig {
   lockout_duration?: number;
   autostart?: boolean;
   theme?: "dark" | "light";
+  wrong_attempts?: number;
+  lockout_until?: number;
 }

@@ -176,11 +176,18 @@ pub fn get_apps_powershell() -> Vec<InstalledApp> {
                 if (-not $_.DisplayName -or $_.SystemComponent -eq 1) { return }
                 
                 $Path = ""
-                if ($_.DisplayIcon) { $Path = $_.DisplayIcon.Split(',')[0].Trim('"') }
-                if (-not (Test-Path $Path) -and $_.InstallLocation) {
+                # Only accept .exe from DisplayIcon, never .ico or .dll
+                if ($_.DisplayIcon) {
+                    $IconPath = $_.DisplayIcon.Split(',')[0].Trim('"')
+                    if ($IconPath.ToLower().EndsWith(".exe") -and (Test-Path $IconPath)) {
+                        $Path = $IconPath
+                    }
+                }
+                # Fallback: find the main .exe in InstallLocation
+                if (-not $Path -and $_.InstallLocation) {
                     $Path = (Get-ChildItem -Path $_.InstallLocation -Filter *.exe -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1).FullName
                 }
-                if (-not (Test-Path $Path)) { return }
+                if (-not $Path -or -not (Test-Path $Path)) { return }
 
                 $Apps[$_.DisplayName] = @{ Name = $_.DisplayName; Path = $Path; Icon = Get-IconBase64 $Path }
             }

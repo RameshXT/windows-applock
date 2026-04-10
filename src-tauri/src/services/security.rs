@@ -1,6 +1,6 @@
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHasher, SaltString},
-    Argon2, PasswordHash, PasswordVerifier, Algorithm, Version, Params,
+    Argon2, PasswordHash, PasswordVerifier,
 };
 use aes_gcm::{
     aead::{Aead, KeyInit},
@@ -11,23 +11,39 @@ use base64::{engine::general_purpose::STANDARD, Engine as _};
 
 pub fn hash_password(password: &str) -> String {
     let salt = SaltString::generate(&mut OsRng);
+    let argon2 = Argon2::default();
     
-    // Extreme "Lightspeed" optimization (4MB RAM, 1 Iteration)
-    let params = Params::new(4096, 1, 1, None).expect("Invalid Argon2 parameters");
-    let argon2 = Argon2::new(
-        Algorithm::Argon2id,
-        Version::V0x13,
-        params,
-    );
-    
-    argon2.hash_password(password.as_bytes(), &salt)
+    let hash = argon2.hash_password(password.as_bytes(), &salt)
         .expect("Failed to hash password")
-        .to_string()
+        .to_string();
+    
+    println!("[Security] New password hashed successfully");
+    hash
 }
 
 pub fn verify_password(password: &str, hash: &str) -> bool {
-    let parsed_hash = PasswordHash::new(hash).expect("Invalid hash format");
-    Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok()
+    if hash.is_empty() {
+        println!("[Security] Verification failed: Hash is empty");
+        return false;
+    }
+
+    let parsed_hash = match PasswordHash::new(hash) {
+        Ok(h) => h,
+        Err(e) => {
+            println!("[Security] Verification failed: Invalid hash format ({:?})", e);
+            return false;
+        }
+    };
+
+    let result = Argon2::default().verify_password(password.as_bytes(), &parsed_hash).is_ok();
+    
+    if result {
+        println!("[Security] Verification SUCCESS");
+    } else {
+        println!("[Security] Verification FAILED: Password mismatch");
+    }
+    
+    result
 }
 
 pub fn encrypt(data: &[u8], secret: &str) -> String {

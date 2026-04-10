@@ -65,19 +65,27 @@ function App() {
     const init = async () => {
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const windowLabel = getCurrentWindow().label;
+        const currentWin = getCurrentWindow();
+        const windowLabel = currentWin.label;
 
+        // AUTHENTICATION POPUP LOGIC
         if (windowLabel === "gatekeeper") {
+          // Load config so authMode and attempt limits work correctly
+          const cfg = await invoke<AppConfig>("get_config");
+          setConfig(cfg);
+          if (cfg.auth_mode) setAuthMode(cfg.auth_mode);
+
           const blocked = await invoke<LockedApp | null>("get_blocked_app");
           if (blocked) {
             setBlockedApp(blocked);
             setView("gatekeeper");
           } else {
-            getCurrentWindow().close();
+            currentWin.close();
           }
           return;
         }
 
+        // MAIN APPLICATION LOGIC
         const cfg = await invoke<AppConfig>("get_config");
         setConfig(cfg);
         if (cfg.auth_mode) setAuthMode(cfg.auth_mode);
@@ -89,17 +97,15 @@ function App() {
         } else {
           const isUnlocked = await invoke<boolean>("get_is_unlocked");
           if (isUnlocked) {
-            // Restore session state
             const persistedView = localStorage.getItem("applock_view") as View;
-            const persistedTab = localStorage.getItem("applock_tab") as Tab;
-            const persistedSettingsTab = localStorage.getItem("applock_settings_tab");
-
             if (persistedView && ["dashboard", "setup", "verify"].includes(persistedView)) {
               setView(persistedView);
             } else {
               setView("dashboard");
             }
-            
+
+            const persistedTab = localStorage.getItem("applock_tab") as Tab;
+            const persistedSettingsTab = localStorage.getItem("applock_settings_tab");
             if (persistedTab) setActiveTab(persistedTab);
             if (persistedSettingsTab) setSettingsTab(persistedSettingsTab);
           } else {
@@ -122,10 +128,15 @@ function App() {
 
     const unlisten = listen<LockedApp>("app-blocked", async (event) => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
-      if (getCurrentWindow().label === "gatekeeper") {
+      const currentWin = getCurrentWindow();
+      // Only the popup window should show the gatekeeper screen
+      if (currentWin.label === "gatekeeper") {
         setBlockedApp(event.payload);
         setView("gatekeeper");
         setGatekeeperPIN("");
+        setError(null);
+        currentWin.unminimize();
+        currentWin.setFocus();
       }
     });
 
@@ -196,22 +207,25 @@ function App() {
     const pinToVerify = pinOverride || gatekeeperPIN;
     if (!blockedApp) return;
     try {
-      const isValid = await invoke<boolean>("verify_password", { password: pinToVerify });
+      const isValid = await invoke<boolean>("verify_gatekeeper", { password: pinToVerify });
       if (isValid) {
-        setIsLaunching(true);
-        await invoke("release_app", { appPath: blockedApp.exec_name });
-        setTimeout(async () => {
-          setBlockedApp(null);
-          setGatekeeperPIN("");
-          setIsLaunching(false);
-          const { getCurrentWindow } = await import("@tauri-apps/api/window");
-          getCurrentWindow().close();
-        }, 1000);
+        // Close the window IMMEDIATELY on success — before any state updates
+        // to prevent re-render races from showing an error state
+        const { getCurrentWindow } = await import("@tauri-apps/api/window");
+        getCurrentWindow().close();
       } else {
+        const cfg = await invoke<AppConfig>("get_config");
+        setConfig(cfg);
         setError("Invalid security credentials");
         setGatekeeperPIN("");
       }
-    } catch (err) { setError(String(err)); }
+    } catch (err) {
+      // An Err from backend means lockout or config issue, not success
+      setError(String(err).replace("Error: ", ""));
+      setGatekeeperPIN("");
+      const cfg = await invoke<AppConfig>("get_config").catch(() => null);
+      if (cfg) setConfig(cfg);
+    }
   };
 
   const toggleApp = async (app: LockedApp | InstalledApp, fromTab?: Tab) => {
@@ -392,8 +406,8 @@ function App() {
           <Gatekeeper 
             blockedApp={blockedApp} authMode={authMode} gatekeeperPIN={gatekeeperPIN} error={error}
             isLaunching={isLaunching} gatekeeperInputRef={gatekeeperInputRef} setGatekeeperPIN={setGatekeeperPIN}
-            setError={setError}
-            handleGatekeeperUnlock={handleGatekeeperUnlock} closeWindow={async () => { const { getCurrentWindow } = await import("@tauri-apps/api/window"); getCurrentWindow().close(); }}
+            setError={setError} config={config}
+            handleGatekeeperUnlock={handleGatekeeperUnlock} closeWindow={async () => { await invoke("release_app"); }}
           />
         )}
       </AnimatePresence>
