@@ -31,7 +31,7 @@ function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [blockedApp, setBlockedApp] = useState<LockedApp | null>(null);
   const [gatekeeperPIN, setGatekeeperPIN] = useState("");
-  const [isLaunching, setIsLaunching] = useState(false);
+  const [isLaunching] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showResetFinal, setShowResetFinal] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
