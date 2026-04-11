@@ -161,12 +161,6 @@ function App() {
     };
   }, []);
 
-  // Trigger fresh fetch whenever user navigates to "system" (Unlocked Apps) tab
-  useEffect(() => {
-    if (activeTab === "system") {
-      fetchDetailedApps();
-    }
-  }, [activeTab]);
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -406,6 +400,7 @@ function App() {
             toast={toast}
             search={search} setSearch={setSearch} placeholder={placeholder} handleLockSession={handleLockSession}
             isScanning={isScanning} allApps={allApps} lockedApps={lockedApps} toggleApp={toggleApp}
+            refreshApps={fetchDetailedApps}
             bulkUnlock={bulkUnlock}
             settingsTab={settingsTab} setSettingsTab={setSettingsTab} authMode={authMode} setAuthMode={setAuthMode}
             setView={(v) => {

@@ -106,11 +106,17 @@ pub async fn get_detailed_apps() -> Result<Vec<DetailedApp>, String> {
         }
     }
 
-    // 2. Store/MSIX/Developer apps via PowerShell
-    // SignatureKind: Store = Microsoft Store apps (WhatsApp, Telegram etc.)
-    // SignatureKind: Developer = Sideloaded/dev apps (Teams, VS Code etc.)
-    // SignatureKind: System = Windows system apps — EXCLUDED
-    let ps_cmd = r#"Get-AppxPackage | Where-Object { $_.SignatureKind -eq 'Store' -or $_.SignatureKind -eq 'Developer' } | Select-Object Name, Publisher, Version, InstallLocation | ConvertTo-Json -Depth 3 -Compress"#;
+    let ps_cmd = r#"Get-AppxPackage | Where-Object { $_.SignatureKind -eq 'Store' -or $_.SignatureKind -eq 'Developer' } | ForEach-Object {
+        $m = $_ | Get-AppxPackageManifest;
+        $dn = $m.Package.Properties.DisplayName;
+        [PSCustomObject]@{
+            Name = $_.Name;
+            DisplayName = $dn;
+            Publisher = $_.Publisher;
+            Version = $_.Version;
+            InstallLocation = $_.InstallLocation;
+        }
+    } | ConvertTo-Json -Compress"#;
 
     let ps_output = std::process::Command::new("powershell")
         .args(["-NoProfile", "-NonInteractive", "-Command", ps_cmd])
@@ -143,8 +149,14 @@ pub async fn get_detailed_apps() -> Result<Vec<DetailedApp>, String> {
                     continue;
                 }
 
-                // Get friendly display name from AppxManifest.xml
-                let display_name = get_appx_display_name(&install_location, &pkg_name);
+                // Get friendly display name
+                let ps_display_name = entry["DisplayName"].as_str().unwrap_or("");
+                let display_name = if !ps_display_name.is_empty() && !ps_display_name.starts_with("ms-resource:") {
+                    ps_display_name.to_string()
+                } else {
+                    get_appx_display_name(&install_location, &pkg_name)
+                };
+
                 if display_name.is_empty() || seen_names.contains(&display_name) {
                     continue;
                 }
@@ -170,26 +182,45 @@ pub async fn get_detailed_apps() -> Result<Vec<DetailedApp>, String> {
     Ok(apps)
 }
 
-// Read DisplayName from AppxManifest.xml
-fn get_appx_display_name(install_location: &str, fallback: &str) -> String {
+// Resolve official DisplayName for Store apps
+fn get_appx_display_name(install_location: &str, package_name: &str) -> String {
+    let mut name = String::new();
+
+    // 1. Try reading from AppxManifest.xml first (Fast)
     if !install_location.is_empty() {
         let manifest_path = format!("{}\\AppxManifest.xml", install_location);
         if let Ok(content) = std::fs::read_to_string(&manifest_path) {
             if let Some(start) = content.find("<DisplayName>") {
                 let rest = &content[start + "<DisplayName>".len()..];
                 if let Some(end) = rest.find("</DisplayName>") {
-                    let name = rest[..end].trim().to_string();
-                    if !name.starts_with("ms-resource:") && !name.is_empty() {
-                        return name;
-                    }
+                    name = rest[..end].trim().to_string();
                 }
             }
         }
     }
-    // Fallback: strip publisher prefix (e.g. "53192759A.WhatsAppDesktop" -> "WhatsApp Desktop")
-    // First try after the first dot
-    let after_dot = fallback.splitn(2, '.').nth(1).unwrap_or(fallback);
-    // Insert spaces before capitals for readability: "WhatsAppDesktop" -> "WhatsApp Desktop"
+
+    // 2. If name is ms-resource or empty, resolve via absolute PowerShell manifest method
+    if name.is_empty() || name.starts_with("ms-resource:") {
+        let ps_cmd = format!(
+            "(Get-AppxPackage -Name \"{}\" | Get-AppxPackageManifest).Package.Properties.DisplayName", 
+            package_name
+        );
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", &ps_cmd])
+            .output();
+
+        if let Ok(out) = output {
+            let resolved = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !resolved.is_empty() && !resolved.starts_with("ms-resource:") {
+                return resolved;
+            }
+        }
+    } else {
+        return name;
+    }
+
+    // 3. Fallback: humanize the package name
+    let after_dot = package_name.splitn(2, '.').nth(1).unwrap_or(package_name);
     let mut readable = String::new();
     for (i, ch) in after_dot.chars().enumerate() {
         if i > 0 && ch.is_uppercase() && !after_dot.chars().nth(i - 1).map(|c| c.is_uppercase()).unwrap_or(false) {

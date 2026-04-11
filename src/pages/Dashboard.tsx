@@ -32,6 +32,7 @@ interface DashboardProps {
   updateConfig: (updates: Partial<AppConfig>) => void;
   setShowResetConfirm: (val: boolean) => void;
   bulkUnlock: (apps: LockedApp[]) => void;
+  refreshApps: () => void;
 }
 
 export const Dashboard = ({
@@ -57,7 +58,8 @@ export const Dashboard = ({
   config,
   updateConfig,
   setShowResetConfirm,
-  bulkUnlock
+  bulkUnlock,
+  refreshApps
 }: DashboardProps) => {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedNames, setSelectedNames] = useState<Set<string>>(new Set());
@@ -133,6 +135,16 @@ export const Dashboard = ({
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+          )}
+          {activeTab !== "settings" && activeTab !== "home" && (
+            <button 
+              className={clsx(styles.refreshBtn, isScanning && styles.refreshBtnRotating)} 
+              onClick={refreshApps} 
+              title="Refresh App List"
+              disabled={isScanning}
+            >
+              <RotateCcw size={18} />
+            </button>
           )}
 
           <button className={styles.logoutBtn} onClick={handleLockSession} title="Lock Session">
