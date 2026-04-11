@@ -191,7 +191,7 @@ export const Dashboard = ({
           >
             <div className={styles.homeStatusSection}>
               <div className={styles.statusCircle}>
-                <ShieldCheck size={48} strokeWidth={1.5} />
+                <img src={logo} style={{ width: 64, height: 64, objectFit: 'contain' }} alt="" />
               </div>
               <div className={styles.statusInfo}>
                 <h2 className={styles.statusTitle}>{appName} Active</h2>

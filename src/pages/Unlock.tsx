@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Shield, AlertCircle, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 import styles from "../styles/App.module.css";
+import logo from "../assets/logo.png";
 import { AuthMode } from "../types";
 
 interface UnlockProps {
@@ -39,7 +40,7 @@ export const Unlock = ({
       transition={{ duration: 0.3 }}
       className={styles.unlockScreen}
     >
-      <div className={styles.unlockIcon}><Shield size={64} strokeWidth={1.5} /></div>
+      <div className={styles.unlockIcon}><img src={logo} style={{ width: 100, height: 100, objectFit: 'contain' }} alt={appName} /></div>
       <div className={styles.unlockTitle}>{isVerify ? "Identity Verification" : `${appName} Access`}</div>
       <p style={{ opacity: 0.5, fontSize: '0.8rem', marginTop: '-0.5rem', marginBottom: '1.5rem' }}>
         {isVerify ? "Please confirm your current security credentials" : "System perimeter is currently secured"}

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { Lock, Search, ShieldCheck, Shield, ArrowRight } from "lucide-react";
 import styles from "../styles/App.module.css";
+import logo from "../assets/logo.png";
 
 interface OnboardingProps {
   appName: string;
@@ -29,7 +30,7 @@ export const Onboarding = ({ appName, onContinue }: OnboardingProps) => {
           className={styles.heroIconWrapper}
         >
           <div className={styles.heroIconGlow} />
-          <Shield size={64} className={styles.unlockIcon} strokeWidth={1} />
+            <img src={logo} style={{ width: 120, height: 120, objectFit: 'contain' }} className={styles.unlockIcon} alt={appName} />
         </motion.div>
         <h1 className={styles.onboardingTitle}>{appName}</h1>
         <p className={styles.onboardingSubtitle}>Precision Privacy for Windows</p>

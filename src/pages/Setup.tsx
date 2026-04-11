@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Shield, AlertCircle, ArrowRight } from "lucide-react";
 import clsx from "clsx";
 import styles from "../styles/App.module.css";
+import logo from "../assets/logo.png";
 import { AuthMode } from "../types";
 
 interface SetupProps {
@@ -56,7 +57,7 @@ export const Setup = ({
             animate={{ rotate: 360 }}
             transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
           />
-          <Shield size={32} className={styles.loaderIcon} />
+          <img src={logo} style={{ width: 64, height: 64, objectFit: 'contain' }} className={styles.loaderIcon} alt="" />
         </div>
         
         <AnimatePresence mode="wait">
@@ -94,7 +95,7 @@ export const Setup = ({
     >
       <div className={styles.gatekeeperBrand} style={{ marginBottom: '1rem' }}>
         <div className={styles.statusCircle} style={{ width: '64px', height: '64px', marginBottom: '1.5rem' }}>
-          <Shield size={32} strokeWidth={1.5} />
+          <img src={logo} style={{ width: 48, height: 48, objectFit: 'contain' }} alt="" />
         </div>
         <h1 className={styles.statusTitle} style={{ fontSize: '1.75rem' }}>Security Protocol</h1>
         <p className={styles.statusSubtitle}>Configure your master authentication method</p>
