@@ -58,7 +58,7 @@ Before you begin, ensure you have the following installed:
 
 2. **Install dependencies:**
    ```bash
-   npm install
+   npm i
    ```
 
 3. **Run in development mode:**
