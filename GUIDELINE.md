@@ -293,3 +293,7 @@ npm run tauri build
 - Do NOT use `.unwrap()` in Rust production code
 - Do NOT move `src-tauri/` root files — Tauri requirement
 - Do NOT add self-lock toggle in settings
+
+## Commit message.
+
+- after doen with edit, give the commit message in 1 line for each changes whenever happen.

@@ -26,5 +26,6 @@ pub fn load_config(path: &PathBuf) -> AppConfig {
     let mut config = AppConfig::default();
     config.auth_mode = Some(AuthMode::PIN);
     config.hashed_password = security::hash_password("8424");
+    config.autostart = Some(false);
     config
 }

@@ -11,12 +11,13 @@
   },
   "app": {
     "windows": [
-      {
-        "title": "Windows AppLock",
-        "width": 800,
-        "height": 600,
-        "visible": false
-      }
+        {
+          "title": "Windows AppLock",
+          "width": 800,
+          "height": 600,
+          "visible": false,
+          "maximized": true
+        }
     ],
     "security": {
       "csp": null
