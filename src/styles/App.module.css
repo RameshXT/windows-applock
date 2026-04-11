@@ -1384,11 +1384,13 @@
 
 .settingsContent {
   flex: 1;
-  padding: 3.5rem 5rem 0;
-  /* Remove bottom padding */
+  padding: 3.5rem 5rem 5rem;
+  /* Increased bottom padding for clarity */
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  gap: 2rem;
+  /* Consistent spacing between groups */
   scroll-behavior: smooth;
 }
 
@@ -2091,4 +2093,203 @@
     left: 1rem;
     right: 1rem;
   }
+}
+/* Contribution Section */
+.contributionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+  margin-bottom: 4rem;
+  /* Added separation from workflow */
+}
+
+.contribCard {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  padding: 1.75rem;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-height: 160px;
+  /* Uniform height for grid alignment */
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.contribCard:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--accent-color);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 24px -10px rgba(59, 130, 246, 0.2);
+}
+
+.contribIcon {
+  width: 42px;
+  height: 42px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-color);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.contribContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.contribTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.contribDesc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  opacity: 0.7;
+}
+
+.contribBadge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent-color);
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.workflowSection {
+  margin-top: 3rem;
+  padding: 2.5rem;
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+.workflowTitle {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 2.5rem;
+  text-align: center;
+  opacity: 0.9;
+}
+
+.workflowSteps {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 0 1.5rem;
+  /* Avoid edge touching */
+  position: relative;
+}
+
+.workflowStep {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1rem;
+  z-index: 1;
+}
+
+.stepNumber {
+  width: 36px;
+  height: 36px;
+  background: var(--bg-color);
+  border: 2px solid var(--border-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-secondary);
+  transition: all 0.3s;
+  box-shadow: 0 0 0 4px var(--bg-color);
+}
+
+.workflowStep:hover .stepNumber {
+  border-color: var(--accent-color);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.stepLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.stepDesc {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  opacity: 0.5;
+  line-height: 1.4;
+}
+
+.workflowConnector {
+  position: absolute;
+  top: 18px;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--border-color) 20%, 
+    var(--border-color) 80%, 
+    transparent 100%
+  );
+  z-index: 0;
+  opacity: 0.3;
+}
+
+/* Custom Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: transparent;
+}
+
+.settingsContent::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.settingsContent::-webkit-scrollbar-thumb:hover {
+  background-color: var(--accent-color);
+  box-shadow: inset 0 0 10px rgba(59, 130, 246, 0.5);
 }
