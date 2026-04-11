@@ -41,6 +41,20 @@ function App() {
   const [toast, setToast] = useState<{ message: string; visible: boolean; type: 'lock' | 'unlock' | 'success' }>({ message: "", visible: false, type: 'success' });
   const [appToRemove, setAppToRemove] = useState<LockedApp | InstalledApp | null>(null);
   const [appsToBulkUnlock, setAppsToBulkUnlock] = useState<LockedApp[] | null>(null);
+  
+  // Function to fetch fresh app list from backend
+  const fetchDetailedApps = async () => {
+    try {
+      setIsScanning(true);
+      // Use get_detailed_apps for fresh registry and Store data
+      const apps = await invoke<InstalledApp[]>("get_detailed_apps");
+      setAllApps(apps);
+      setIsScanning(false);
+    } catch (err) {
+      console.error("Failed to fetch apps:", err);
+      setIsScanning(false);
+    }
+  };
 
   const triggerToast = (message: string, type: 'lock' | 'unlock' | 'success' = 'success') => {
     setToast({ message, visible: true, type });
@@ -116,10 +130,8 @@ function App() {
         const locked = await invoke<LockedApp[]>("get_apps");
         setLockedApps(locked);
 
-        setIsScanning(true);
-        const apps = await invoke<InstalledApp[]>("get_system_apps");
-        setAllApps(apps);
-        setIsScanning(false);
+        // Fetch detailed apps on initial load
+        fetchDetailedApps();
       } catch (err) {
         console.error(err);
       }
@@ -143,12 +155,18 @@ function App() {
     const unlistenReload = listen("reload-app", () => {
       window.location.reload();
     });
-
     return () => {
       unlisten.then(f => f());
       unlistenReload.then(f => f());
     };
   }, []);
+
+  // Trigger fresh fetch whenever user navigates to "system" (Unlocked Apps) tab
+  useEffect(() => {
+    if (activeTab === "system") {
+      fetchDetailedApps();
+    }
+  }, [activeTab]);
 
   const handleSetup = async (e: React.FormEvent) => {
     e.preventDefault();

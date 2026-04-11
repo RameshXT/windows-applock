@@ -405,7 +405,10 @@ export const Dashboard = ({
                       )}
                       {isLocked && !selectionMode && <div className={styles.lockedBadge}><Lock size={8} /> LOCKED</div>}
                       <div className={styles.appIconContainer}>
-                        {app.icon ? <img src={app.icon} className={styles.appIconImg} alt="" /> : <img src={logo} className={styles.appIconImg} style={{ opacity: isLocked ? 1 : 0.4 }} alt="" />}
+                        {app.icon
+                          ? <img src={app.icon} className={styles.appIconImg} alt="" />
+                          : <div className={styles.appIconFallback}><Monitor size={20} opacity={isLocked ? 0.9 : 0.3} /></div>
+                        }
                       </div>
                       <div className={styles.appInfo}>
                         <div className={styles.appName}>{app.name}</div>

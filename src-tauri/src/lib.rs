@@ -32,7 +32,7 @@ pub fn run() {
                 authorized_paths: Mutex::new(std::collections::HashMap::new()),
                 last_success_time: Mutex::new(None),
                 recently_killed: Mutex::new(std::collections::HashMap::new()),
-                active_blocked_app: Mutex::new(None),
+                active_blocked_app: Mutex::new(None)    ,
             });
             
             app.manage(state.clone());
@@ -82,7 +82,8 @@ pub fn run() {
             commands::get_config,
             commands::update_settings,
             commands::reset_app,
-            commands::verify_gatekeeper
+            commands::verify_gatekeeper,
+            crate::services::detailed_scanner::get_detailed_apps
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
