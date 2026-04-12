@@ -47,7 +47,7 @@ export const Onboarding = ({ appName, onContinue }: OnboardingProps) => {
         {[
           { icon: <Lock size={24} />, title: "Secure Access", desc: "Military-grade encryption for your master credentials." },
           { icon: <Search size={24} />, title: "Smart Mapping", desc: "Instantly discover and protect any application." },
-          { icon: <ShieldCheck size={24} />, title: "Active Shield", desc: "Real-time background protection that never sleeps." }
+          { icon: <img src={logo} style={{ width: 24, height: 24, objectFit: 'contain' }} alt="" />, title: "Active Shield", desc: "Real-time background protection that never sleeps." }
         ].map((f, i) => (
           <motion.div
             key={i}

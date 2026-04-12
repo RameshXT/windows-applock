@@ -101,7 +101,7 @@ export const Dashboard = ({
             >
               {toast.type === 'lock' && <Lock size={16} />}
               {toast.type === 'unlock' && <Unlock size={16} />}
-              {toast.type === 'success' && <ShieldCheck size={16} />}
+              {toast.type === 'success' && <img src={logo} style={{ width: 16, height: 16, objectFit: 'contain' }} alt="" />}
               <span>{toast.visible ? toast.message : "Credentials Updated Successfully"}</span>
             </motion.div>
           )}
@@ -452,7 +452,7 @@ export const Dashboard = ({
                   }}>v1.0.4</span>
                 </div>
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
-                  <ShieldCheck size={12} color="#888" />
+                  <img src={logo} style={{ width: 14, height: 14, objectFit: 'contain' }} alt="" />
                   <span style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', color: '#fff', opacity: 0.3 }}>VERIFIED</span>
                 </div>
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.4rem', fontSize: '0.7rem' }}>
