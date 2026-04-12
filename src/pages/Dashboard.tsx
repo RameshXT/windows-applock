@@ -192,7 +192,10 @@ export const Dashboard = ({
               <div className={styles.statusShield}>
                 <Shield className={styles.shieldBaseIcon} size={220} />
                 <div className={styles.statusLogoGlow} />
-                <img src={logo} className={styles.statusLogoImage} alt="" />
+                <div className={styles.logoWrapper}>
+                  <img src={logo} className={styles.statusLogoImage} alt="" />
+                  <div className={styles.shineEffect} />
+                </div>
               </div>
               <div className={styles.statusInfo}>
                 <h2 className={styles.statusTitle}>{appName}</h2>
