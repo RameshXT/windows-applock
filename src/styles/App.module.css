@@ -6,7 +6,7 @@
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: radial-gradient(circle at 50% 50%, #111 0%, #050505 100%);
+  background: var(--bg-color);
   overflow: hidden;
 }
 
@@ -1085,7 +1085,7 @@
 /* Premium Native Gatekeeper */
 .vscodeTheme {
   --accent-color: #007acc;
-  background: radial-gradient(circle at 50% 50%, #1e1e1e 0%, #111 100%);
+  background: var(--surface-color);
 }
 
 .gatekeeperCard {
@@ -1104,7 +1104,7 @@
 }
 
 .solidBg {
-  background: radial-gradient(circle at 50% 50%, #1a1c22 0%, #0a0b0d 100%) !important;
+  background: var(--bg-color) !important;
 }
 
 .attemptInfo {
@@ -1384,8 +1384,8 @@
 
 .settingsContent {
   flex: 1;
-  padding: 3.5rem 5rem 5rem;
-  /* Increased bottom padding for clarity */
+  padding: 3.5rem 5rem 0;
+  /* Removed bottom padding for sticky footer alignment */
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -1701,11 +1701,21 @@
 
 .settingsFooter {
   margin-top: auto;
-  margin-bottom: 2rem;
+  margin-bottom: 0;
+  padding-top: 1.25rem;
+  padding-bottom: 2rem;
+  /* Align with sidebar reset button bottom margin */
   display: flex;
   align-items: center;
   height: 44px;
+  box-sizing: content-box;
+  /* Ensure height is for content, padding is extra */
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  position: sticky;
+  bottom: 0;
+  background: var(--bg-color);
+  backdrop-filter: blur(20px);
+  z-index: 10;
 }
 
 .developerLink {
