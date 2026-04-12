@@ -198,29 +198,12 @@ export const Dashboard = ({
               </div>
                 <div className={styles.statusInfo}>
                   <motion.h2
+                    initial={{ y: 40, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 1, ease: [0.19, 1, 0.22, 1], delay: 0.2 }}
                     className={styles.statusTitle}
-                    initial="hidden"
-                    animate="visible"
-                    variants={{
-                      visible: { transition: { staggerChildren: 0.02, delayChildren: 0.2 } },
-                    }}
                   >
-                    {appName.split("").map((char, index) => (
-                      <motion.span
-                        key={index}
-                        style={{ display: "inline-block", whiteSpace: "pre" }}
-                        variants={{
-                          hidden: { opacity: 0, y: 20 },
-                          visible: {
-                            opacity: 1,
-                            y: 0,
-                            transition: { duration: 1, ease: [0.19, 1, 0.22, 1] },
-                          },
-                        }}
-                      >
-                        {char}
-                      </motion.span>
-                    ))}
+                    {appName}
                   </motion.h2>
                   <motion.p 
                     initial={{ opacity: 0, y: 10 }}
