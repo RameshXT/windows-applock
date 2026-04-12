@@ -1,23 +1,21 @@
 # Contributing to Windows AppLock
 
-Thank you for helping make **Windows AppLock** better!
+Thank you for contributing to **Windows AppLock**.
 
-## 🚀 Ways to Contribute
-- **Bugs:** Report issues via the [Bug Report](.github/ISSUE_TEMPLATE/bug_report.md) template.
-- **Features:** Suggest enhancements via [Feature Requests](.github/ISSUE_TEMPLATE/feature_request.md).
-- **Docs:** Improve documentation in the `docs` folder or this file.
-- **Code:** Submit Pull Requests for open issues.
+## Ways to Contribute
+- **Issues:** Report bugs or suggest features using the provided templates.
+- **Documentation:** Help refine the project documentation.
+- **Code:** Submit Pull Requests for bug fixes or features.
 
-## 🛠️ Workflow
-1. Fork the repository.
-2. Create a branch: `feat/your-feature` or `fix/your-bug`.
-3. Commit using conventional tags: `feat(scope): ...` or `fix(scope): ...`.
-4. Submit a Pull Request.
+## Workflow
+1. Fork the repository and create a branch (e.g., `feat/` or `fix/`).
+2. Use conventional commits: `type(scope): description`.
+3. Submit a Pull Request for review.
 
-## 📋 Coding Standards
-- **React:** Strict TypeScript, no `any`.
-- **Styling:** CSS Modules only.
-- **Rust:** No `.unwrap()` in production; use `Result<T, String>`.
+## Technical Standards
+- **TypeScript:** Strict typing is required; avoid the use of `any`.
+- **Styling:** All styles must use CSS Modules.
+- **Rust:** Ensure proper error handling; avoid `.unwrap()` in production code.
 
-## 🤝 Community
-Please follow our [Code of Conduct](.github/CODE_OF_CONDUCT.md).
+## Guidelines
+Follow the [Code of Conduct](.github/CODE_OF_CONDUCT.md) for all contributions.
