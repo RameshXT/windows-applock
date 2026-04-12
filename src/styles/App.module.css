@@ -70,7 +70,7 @@
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1;
-  background: linear-gradient(to bottom, #fff 40%, rgba(255,255,255,0.7) 100%);
+  background: linear-gradient(to bottom, #fff 40%, rgba(255, 255, 255, 0.7) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -97,11 +97,11 @@
     grid-template-columns: 1fr;
     gap: 1rem;
   }
-  
+
   .onboardingTitle {
     font-size: 2.5rem;
   }
-  
+
   .onboarding {
     padding: 2rem 1.5rem;
     gap: 2.5rem;
@@ -333,8 +333,13 @@
 }
 
 @keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .successToast {
@@ -995,6 +1000,7 @@
   .unlockAction span {
     font-size: 0.8rem;
   }
+
   .unlockAction {
     padding: 0.85rem 1rem;
   }
@@ -1702,19 +1708,16 @@
 .settingsFooter {
   margin-top: auto;
   margin-bottom: 0;
-  padding-top: 1.25rem;
-  padding-bottom: 2rem;
-  /* Align with sidebar reset button bottom margin */
   display: flex;
   align-items: center;
   height: 44px;
+  padding-top: 1.25rem;
+  padding-bottom: 2rem;
   box-sizing: content-box;
-  /* Ensure height is for content, padding is extra */
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   position: sticky;
   bottom: 0;
   background: var(--bg-color);
-  backdrop-filter: blur(20px);
   z-index: 10;
 }
 
@@ -2104,6 +2107,7 @@
     right: 1rem;
   }
 }
+
 /* Contribution Section */
 .contributionGrid {
   display: grid;
@@ -2263,12 +2267,11 @@
   left: 15%;
   right: 15%;
   height: 1px;
-  background: linear-gradient(90deg, 
-    transparent 0%, 
-    var(--border-color) 20%, 
-    var(--border-color) 80%, 
-    transparent 100%
-  );
+  background: linear-gradient(90deg,
+      transparent 0%,
+      var(--border-color) 20%,
+      var(--border-color) 80%,
+      transparent 100%);
   z-index: 0;
   opacity: 0.3;
 }
