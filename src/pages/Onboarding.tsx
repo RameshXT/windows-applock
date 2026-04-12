@@ -30,10 +30,17 @@ export const Onboarding = ({ appName, onContinue }: OnboardingProps) => {
           className={styles.heroIconWrapper}
         >
           <div className={styles.heroIconGlow} />
-            <img src={logo} style={{ width: 120, height: 120, objectFit: 'contain' }} className={styles.unlockIcon} alt={appName} />
+          <img
+            src={logo}
+            style={{ width: 120, height: 120, objectFit: "contain" }}
+            className={styles.unlockIcon}
+            alt={appName}
+          />
         </motion.div>
         <h1 className={styles.onboardingTitle}>{appName}</h1>
-        <p className={styles.onboardingSubtitle}>Precision Privacy for Windows</p>
+        <p className={styles.onboardingSubtitle}>
+          Precision Privacy for Windows
+        </p>
       </motion.div>
 
       <motion.div
@@ -41,19 +48,37 @@ export const Onboarding = ({ appName, onContinue }: OnboardingProps) => {
         initial="hidden"
         animate="visible"
         variants={{
-          visible: { transition: { staggerChildren: 0.1 } }
+          visible: { transition: { staggerChildren: 0.1 } },
         }}
       >
         {[
-          { icon: <Lock size={24} />, title: "Secure Access", desc: "Military-grade encryption for your master credentials." },
-          { icon: <Search size={24} />, title: "Smart Mapping", desc: "Instantly discover and protect any application." },
-          { icon: <img src={logo} style={{ width: 24, height: 24, objectFit: 'contain' }} alt="" />, title: "Active Shield", desc: "Real-time background protection that never sleeps." }
+          {
+            icon: <Lock size={24} />,
+            title: "Secure Access",
+            desc: "Military-grade encryption for your master credentials.",
+          },
+          {
+            icon: <Search size={24} />,
+            title: "Smart Mapping",
+            desc: "Instantly discover and protect any application.",
+          },
+          {
+            icon: (
+              <img
+                src={logo}
+                style={{ width: 24, height: 24, objectFit: "contain" }}
+                alt=""
+              />
+            ),
+            title: "Active Shield",
+            desc: "Real-time background protection that never sleeps.",
+          },
         ].map((f, i) => (
           <motion.div
             key={i}
             variants={{
               hidden: { y: 20, opacity: 0 },
-              visible: { y: 0, opacity: 1 }
+              visible: { y: 0, opacity: 1 },
             }}
             className={styles.featureCard}
           >
@@ -70,14 +95,13 @@ export const Onboarding = ({ appName, onContinue }: OnboardingProps) => {
         transition={{ delay: 0.5, duration: 0.5 }}
         className={styles.onboardingActions}
       >
-        <button
-          onClick={onContinue}
-          className={styles.primaryBtn}
-        >
+        <button onClick={onContinue} className={styles.primaryBtn}>
           <span>Initialize Security</span>
           <ArrowRight size={20} />
         </button>
-        <span className={styles.versionBadge}>VERSION 2.1.0 • SECURED BY QUANTUM</span>
+        <span className={styles.versionBadge}>
+          VERSION 2.1.0 • SECURED BY QUANTUM
+        </span>
       </motion.div>
     </motion.div>
   );

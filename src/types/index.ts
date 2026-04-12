@@ -1,4 +1,10 @@
-export type View = "onboarding" | "setup" | "unlock" | "dashboard" | "gatekeeper" | "verify";
+export type View =
+  | "onboarding"
+  | "setup"
+  | "unlock"
+  | "dashboard"
+  | "gatekeeper"
+  | "verify";
 export type AuthMode = "Password" | "PIN";
 export type Tab = "home" | "all" | "system" | "settings";
 

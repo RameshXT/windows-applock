@@ -13,7 +13,7 @@ interface SecurityPolicyProps {
 export const SecurityPolicy: React.FC<SecurityPolicyProps> = ({
   config,
   updateConfig,
-  appName
+  appName,
 }) => {
   return (
     <section className={styles.settingsGroup}>
@@ -29,13 +29,15 @@ export const SecurityPolicy: React.FC<SecurityPolicyProps> = ({
         <div className={styles.settingControl}>
           <ModernSelect
             value={String(config.auto_lock_duration || 0)}
-            onChange={(val) => updateConfig({ auto_lock_duration: parseInt(val) })}
+            onChange={(val) =>
+              updateConfig({ auto_lock_duration: parseInt(val) })
+            }
             options={[
               { label: "Never", value: "0" },
               { label: "5 Minutes", value: "5" },
               { label: "15 Minutes", value: "15" },
               { label: "30 Minutes", value: "30" },
-              { label: "1 Hour", value: "60" }
+              { label: "1 Hour", value: "60" },
             ]}
           />
         </div>
@@ -44,10 +46,12 @@ export const SecurityPolicy: React.FC<SecurityPolicyProps> = ({
       <div className={styles.settingRow}>
         <div className={styles.settingLabel}>
           <span>Emergency Lock</span>
-          <span>Press <code>Ctrl+Alt+L</code> to instantly lock everything.</span>
+          <span>
+            Press <code>Ctrl+Alt+L</code> to instantly lock everything.
+          </span>
         </div>
         <div className={styles.settingControl}>
-            <span className={styles.statusPill}>Active</span>
+          <span className={styles.statusPill}>Active</span>
         </div>
       </div>
 
@@ -64,7 +68,7 @@ export const SecurityPolicy: React.FC<SecurityPolicyProps> = ({
               { label: "Off", value: "0" },
               { label: "15 Seconds", value: "15" },
               { label: "30 Seconds", value: "30" },
-              { label: "1 Minute", value: "60" }
+              { label: "1 Minute", value: "60" },
             ]}
           />
         </div>
@@ -77,14 +81,20 @@ export const SecurityPolicy: React.FC<SecurityPolicyProps> = ({
         </div>
         <div className={styles.settingControl}>
           <div className={styles.pillSwitch}>
-            <button 
-              className={clsx(styles.pillSwitchBtn, config.immediate_relock && styles.pillSwitchBtnActive)}
+            <button
+              className={clsx(
+                styles.pillSwitchBtn,
+                config.immediate_relock && styles.pillSwitchBtnActive
+              )}
               onClick={() => updateConfig({ immediate_relock: true })}
             >
               ON
             </button>
-            <button 
-              className={clsx(styles.pillSwitchBtn, !config.immediate_relock && styles.pillSwitchBtnActive)}
+            <button
+              className={clsx(
+                styles.pillSwitchBtn,
+                !config.immediate_relock && styles.pillSwitchBtnActive
+              )}
               onClick={() => updateConfig({ immediate_relock: false })}
             >
               OFF
@@ -100,15 +110,33 @@ export const SecurityPolicy: React.FC<SecurityPolicyProps> = ({
         </div>
         <div className={styles.settingControl}>
           <div className={styles.pillSwitch}>
-            <button 
-              className={clsx(styles.pillSwitchBtn, (config.strict_enforcement || config.protection_persistence) && styles.pillSwitchBtnActive)}
-              onClick={() => updateConfig({ strict_enforcement: true, protection_persistence: true })}
+            <button
+              className={clsx(
+                styles.pillSwitchBtn,
+                (config.strict_enforcement || config.protection_persistence) &&
+                styles.pillSwitchBtnActive
+              )}
+              onClick={() =>
+                updateConfig({
+                  strict_enforcement: true,
+                  protection_persistence: true,
+                })
+              }
             >
               ON
             </button>
-            <button 
-              className={clsx(styles.pillSwitchBtn, !(config.strict_enforcement || config.protection_persistence) && styles.pillSwitchBtnActive)}
-              onClick={() => updateConfig({ strict_enforcement: false, protection_persistence: false })}
+            <button
+              className={clsx(
+                styles.pillSwitchBtn,
+                !(config.strict_enforcement || config.protection_persistence) &&
+                styles.pillSwitchBtnActive
+              )}
+              onClick={() =>
+                updateConfig({
+                  strict_enforcement: false,
+                  protection_persistence: false,
+                })
+              }
             >
               OFF
             </button>
@@ -121,16 +149,27 @@ export const SecurityPolicy: React.FC<SecurityPolicyProps> = ({
           <span>Safety Lockout</span>
           <span>Configures automatic cooldown after failed attempts.</span>
         </div>
-        <div className={styles.settingControl} style={{ display: 'flex', gap: '0.75rem' }}>
+        <div
+          className={styles.settingControl}
+          style={{ display: "flex", gap: "0.75rem" }}
+        >
           <ModernSelect
             value={String(config.attempt_limit)}
             onChange={(val) => updateConfig({ attempt_limit: parseInt(val) })}
-            options={[{ label: "3 Failed", value: "3" }, { label: "5 Failed", value: "5" }]}
+            options={[
+              { label: "3 Failed", value: "3" },
+              { label: "5 Failed", value: "5" },
+            ]}
           />
           <ModernSelect
             value={String(config.lockout_duration)}
-            onChange={(val) => updateConfig({ lockout_duration: parseInt(val) })}
-            options={[{ label: "30s Wait", value: "30" }, { label: "1m Wait", value: "60" }]}
+            onChange={(val) =>
+              updateConfig({ lockout_duration: parseInt(val) })
+            }
+            options={[
+              { label: "30s Wait", value: "30" },
+              { label: "1m Wait", value: "60" },
+            ]}
           />
         </div>
       </div>

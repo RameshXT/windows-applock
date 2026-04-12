@@ -24,10 +24,6 @@ interface AppInitResult {
   setSettingsTab: React.Dispatch<React.SetStateAction<string>>;
 }
 
-/**
- * Bootstraps the application on startup and manages global event listeners.
- * Takes external setters so it can hydrate other hooks without owning their state.
- */
 export function useAppInit(options: AppInitOptions): AppInitResult {
   const [blockedApp, setBlockedApp] = useState<LockedApp | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>(
@@ -62,18 +58,26 @@ export function useAppInit(options: AppInitOptions): AppInitResult {
         if (cfg.auth_mode) options.setAuthMode(cfg.auth_mode);
 
         const isSetup = await checkSetup();
-        if (!isSetup) { options.onSetView("onboarding"); return; }
+        if (!isSetup) {
+          options.onSetView("onboarding");
+          return;
+        }
 
         const isUnlocked = await getIsUnlocked();
         if (isUnlocked) {
           const persistedView = localStorage.getItem(STORAGE_KEYS.VIEW) as View;
-          if (persistedView && (RESTORABLE_VIEWS as readonly string[]).includes(persistedView)) {
+          if (
+            persistedView &&
+            (RESTORABLE_VIEWS as readonly string[]).includes(persistedView)
+          ) {
             options.onSetView(persistedView);
           } else {
             options.onSetView("dashboard");
           }
           const persistedTab = localStorage.getItem(STORAGE_KEYS.TAB) as Tab;
-          const persistedSettingsTab = localStorage.getItem(STORAGE_KEYS.SETTINGS_TAB);
+          const persistedSettingsTab = localStorage.getItem(
+            STORAGE_KEYS.SETTINGS_TAB
+          );
           if (persistedTab) setActiveTab(persistedTab);
           if (persistedSettingsTab) setSettingsTab(persistedSettingsTab);
         } else {
@@ -88,10 +92,8 @@ export function useAppInit(options: AppInitOptions): AppInitResult {
       }
     };
     init();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Monitor events: blocked app and full reload
   useEffect(() => {
     const unlisten = listen<LockedApp>("app-blocked", async (event) => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
@@ -108,10 +110,9 @@ export function useAppInit(options: AppInitOptions): AppInitResult {
     const unlistenReload = listen("reload-app", () => window.location.reload());
 
     return () => {
-      unlisten.then(f => f());
-      unlistenReload.then(f => f());
+      unlisten.then((f) => f());
+      unlistenReload.then((f) => f());
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { blockedApp, activeTab, setActiveTab, settingsTab, setSettingsTab };

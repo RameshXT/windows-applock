@@ -15,9 +15,14 @@ interface ModernSelectProps {
   onChange: (val: string) => void;
 }
 
-export const ModernSelect = ({ value, options, onChange }: ModernSelectProps) => {
+export const ModernSelect = ({
+  value,
+  options,
+  onChange,
+}: ModernSelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const selectedLabel = options.find(o => o.value === value)?.label || "Select...";
+  const selectedLabel =
+    options.find((o) => o.value === value)?.label || "Select...";
 
   return (
     <div className={styles.selectWrapper}>
@@ -40,11 +45,17 @@ export const ModernSelect = ({ value, options, onChange }: ModernSelectProps) =>
             exit={{ opacity: 0, y: 5 }}
             className={styles.selectMenu}
           >
-            {options.map(opt => (
+            {options.map((opt) => (
               <div
                 key={opt.value}
-                className={clsx(styles.selectOption, opt.value === value && styles.selectOptionActive)}
-                onClick={() => { onChange(opt.value); setIsOpen(false); }}
+                className={clsx(
+                  styles.selectOption,
+                  opt.value === value && styles.selectOptionActive
+                )}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
               >
                 {opt.label}
               </div>

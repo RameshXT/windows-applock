@@ -33,77 +33,97 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   setAuthMode,
   setView,
   setIsUpdatingFromSettings,
-  setShowResetConfirm
+  setShowResetConfirm,
 }) => {
   return (
     <div className={styles.settingsContainer}>
       <aside className={styles.settingsSidebar}>
-        <button 
-          className={clsx(styles.settingsNavBtn, settingsTab === "account" && styles.settingsNavBtnActive)} 
+        <button
+          className={clsx(
+            styles.settingsNavBtn,
+            settingsTab === "account" && styles.settingsNavBtnActive
+          )}
           onClick={() => setSettingsTab("account")}
         >
           <User size={18} /> Account & Setup
         </button>
-        <button 
-          className={clsx(styles.settingsNavBtn, settingsTab === "security" && styles.settingsNavBtnActive)} 
+        <button
+          className={clsx(
+            styles.settingsNavBtn,
+            settingsTab === "security" && styles.settingsNavBtnActive
+          )}
           onClick={() => setSettingsTab("security")}
         >
           <ShieldCheck size={18} color="#888" /> Security Policy
         </button>
-        <button 
-          className={clsx(styles.settingsNavBtn, settingsTab === "system" && styles.settingsNavBtnActive)} 
+        <button
+          className={clsx(
+            styles.settingsNavBtn,
+            settingsTab === "system" && styles.settingsNavBtnActive
+          )}
           onClick={() => setSettingsTab("system")}
         >
           <Monitor size={18} /> System & Style
         </button>
-        <button 
-          className={clsx(styles.settingsNavBtn, settingsTab === "contribution" && styles.settingsNavBtnActive)} 
+        <button
+          className={clsx(
+            styles.settingsNavBtn,
+            settingsTab === "contribution" && styles.settingsNavBtnActive
+          )}
           onClick={() => setSettingsTab("contribution")}
         >
           <GithubIcon size={18} /> Contribution
         </button>
-        <button 
-          className={clsx(styles.settingsNavBtn, settingsTab === "credits" && styles.settingsNavBtnActive)} 
+        <button
+          className={clsx(
+            styles.settingsNavBtn,
+            settingsTab === "credits" && styles.settingsNavBtnActive
+          )}
           onClick={() => setSettingsTab("credits")}
         >
           <Star size={18} /> Credits
         </button>
         <div style={{ flex: 1 }} />
-        <button className={styles.dangerBtnMinimal} onClick={() => setShowResetConfirm(true)}>
+        <button
+          className={styles.dangerBtnMinimal}
+          onClick={() => setShowResetConfirm(true)}
+        >
           <RotateCcw size={18} /> Factory Reset
         </button>
       </aside>
 
       <div className={styles.settingsContent}>
         {settingsTab === "account" && (
-          <AccountSetup 
-            config={config} 
-            updateConfig={updateConfig} 
-            authMode={authMode} 
-            setAuthMode={setAuthMode} 
-            setView={setView} 
-            setIsUpdatingFromSettings={setIsUpdatingFromSettings} 
-            appName={appName} 
+          <AccountSetup
+            config={config}
+            updateConfig={updateConfig}
+            authMode={authMode}
+            setAuthMode={setAuthMode}
+            setView={setView}
+            setIsUpdatingFromSettings={setIsUpdatingFromSettings}
+            appName={appName}
           />
         )}
 
         {settingsTab === "security" && (
-          <SecurityPolicy config={config} updateConfig={updateConfig} appName={appName} />
+          <SecurityPolicy
+            config={config}
+            updateConfig={updateConfig}
+            appName={appName}
+          />
         )}
 
         {settingsTab === "system" && (
-          <SystemStyle config={config} updateConfig={updateConfig} appName={appName} />
+          <SystemStyle
+            config={config}
+            updateConfig={updateConfig}
+            appName={appName}
+          />
         )}
 
-        {settingsTab === "contribution" && (
-          <Contribution appName={appName} />
-        )}
+        {settingsTab === "contribution" && <Contribution appName={appName} />}
 
-        {settingsTab === "credits" && (
-          <Credits appName={appName} />
-        )}
-
-
+        {settingsTab === "credits" && <Credits appName={appName} />}
       </div>
     </div>
   );

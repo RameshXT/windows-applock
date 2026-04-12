@@ -1,6 +1,11 @@
 import { useState, Dispatch, SetStateAction } from "react";
 import { View, AuthMode, AppConfig } from "../types";
-import { setupPassword, verifyPassword, verifyGatekeeper, getConfig } from "../services/auth.service";
+import {
+  setupPassword,
+  verifyPassword,
+  verifyGatekeeper,
+  getConfig,
+} from "../services/auth.service";
 
 interface SetupContext {
   isUpdating: boolean;
@@ -20,12 +25,25 @@ interface UseAuthResult {
   setError: Dispatch<SetStateAction<string | null>>;
   isCompleting: boolean;
   completingStep: number;
-  handleSetup: (e: React.FormEvent, authMode: AuthMode, ctx: SetupContext) => Promise<void>;
-  handleUnlock: (e: React.FormEvent, view: View | null, setView: Dispatch<SetStateAction<View | null>>, override?: string) => Promise<void>;
-  handleGatekeeperUnlock: (e: React.FormEvent, blockedApp: unknown, setConfig: Dispatch<SetStateAction<AppConfig>>, override?: string) => Promise<void>;
+  handleSetup: (
+    e: React.FormEvent,
+    authMode: AuthMode,
+    ctx: SetupContext
+  ) => Promise<void>;
+  handleUnlock: (
+    e: React.FormEvent,
+    view: View | null,
+    setView: Dispatch<SetStateAction<View | null>>,
+    override?: string
+  ) => Promise<void>;
+  handleGatekeeperUnlock: (
+    e: React.FormEvent,
+    blockedApp: unknown,
+    setConfig: Dispatch<SetStateAction<AppConfig>>,
+    override?: string
+  ) => Promise<void>;
 }
 
-/** Owns all authentication state and handlers. */
 export function useAuth(): UseAuthResult {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -58,10 +76,15 @@ export function useAuth(): UseAuthResult {
         setTimeout(() => ctx.setShowUpdateSuccess(false), 3000);
       } else {
         setIsCompleting(true);
-        const messages = ["Great! You're all set.", "We're preparing your perimeter..", "One moment..", "Here we go!"];
+        const messages = [
+          "Great! You're all set.",
+          "We're preparing your perimeter..",
+          "One moment..",
+          "Here we go!",
+        ];
         for (let i = 0; i < messages.length; i++) {
           setCompletingStep(i);
-          await new Promise(r => setTimeout(r, 1400));
+          await new Promise((r) => setTimeout(r, 1400));
         }
         ctx.setView("dashboard");
         setIsCompleting(false);
@@ -123,11 +146,18 @@ export function useAuth(): UseAuthResult {
   };
 
   return {
-    password, setPassword,
-    confirmPassword, setConfirmPassword,
-    gatekeeperPIN, setGatekeeperPIN,
-    error, setError,
-    isCompleting, completingStep,
-    handleSetup, handleUnlock, handleGatekeeperUnlock,
+    password,
+    setPassword,
+    confirmPassword,
+    setConfirmPassword,
+    gatekeeperPIN,
+    setGatekeeperPIN,
+    error,
+    setError,
+    isCompleting,
+    completingStep,
+    handleSetup,
+    handleUnlock,
+    handleGatekeeperUnlock,
   };
 }

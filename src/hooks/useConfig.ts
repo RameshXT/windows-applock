@@ -17,17 +17,12 @@ interface UseConfigResult {
   updateConfig: (updates: Partial<AppConfig>) => Promise<void>;
 }
 
-/**
- * Owns all configuration state and the updateConfig action.
- * Expose `setConfig` so `useAppInit` can hydrate config on startup.
- */
 export function useConfig(
   setError?: (err: string | null) => void
 ): UseConfigResult {
   const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
   const [authMode, setAuthMode] = useState<AuthMode>("PIN");
 
-  // Apply animation intensity setting when it changes
   useEffect(() => {
     if (config.animations_intensity === "low") {
       document.documentElement.setAttribute("data-reduced-motion", "true");

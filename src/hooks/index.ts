@@ -1,4 +1,3 @@
-// Hooks barrel export — import from "hooks" instead of "hooks/useXxx"
 export { useAppInit } from "./useAppInit";
 export { useAuth } from "./useAuth";
 export { useApps } from "./useApps";

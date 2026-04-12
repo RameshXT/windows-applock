@@ -2,21 +2,37 @@ import { useState, useEffect, Dispatch, SetStateAction } from "react";
 import { View } from "../types";
 
 interface UseToastResult {
-  toast: { message: string; visible: boolean; type: 'lock' | 'unlock' | 'success' };
+  toast: {
+    message: string;
+    visible: boolean;
+    type: "lock" | "unlock" | "success";
+  };
   showUpdateSuccess: boolean;
   setShowUpdateSuccess: Dispatch<SetStateAction<boolean>>;
-  triggerToast: (message: string, type?: 'lock' | 'unlock' | 'success') => void;
+  triggerToast: (message: string, type?: "lock" | "unlock" | "success") => void;
 }
 
 export function useToast(): UseToastResult {
-  const [toast, setToast] = useState<{ message: string; visible: boolean; type: 'lock' | 'unlock' | 'success' }>({
-    message: "", visible: false, type: 'success'
+  const [toast, setToast] = useState<{
+    message: string;
+    visible: boolean;
+    type: "lock" | "unlock" | "success";
+  }>({
+    message: "",
+    visible: false,
+    type: "success",
   });
   const [showUpdateSuccess, setShowUpdateSuccess] = useState(false);
 
-  const triggerToast = (message: string, type: 'lock' | 'unlock' | 'success' = 'success') => {
+  const triggerToast = (
+    message: string,
+    type: "lock" | "unlock" | "success" = "success"
+  ) => {
     setToast({ message, visible: true, type });
-    setTimeout(() => setToast({ message: "", visible: false, type: 'success' }), 3000);
+    setTimeout(
+      () => setToast({ message: "", visible: false, type: "success" }),
+      3000
+    );
   };
 
   return { toast, showUpdateSuccess, setShowUpdateSuccess, triggerToast };
@@ -32,10 +48,14 @@ interface UseFocusGuardProps {
   gatekeeperInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
-/** Keeps the correct input focused at all times based on current view */
 export function useFocusGuard({
-  view, authMode, passwordLength,
-  pinInputRef, confirmInputRef, mainInputRef, gatekeeperInputRef,
+  view,
+  authMode,
+  passwordLength,
+  pinInputRef,
+  confirmInputRef,
+  mainInputRef,
+  gatekeeperInputRef,
 }: UseFocusGuardProps) {
   useEffect(() => {
     const handleFocus = () => {
@@ -43,8 +63,13 @@ export function useFocusGuard({
       if (view === "unlock" || view === "verify") target = mainInputRef.current;
       else if (view === "gatekeeper") target = gatekeeperInputRef.current;
       else if (view === "setup") {
-        if (authMode === "PIN") target = passwordLength < 4 ? pinInputRef.current : confirmInputRef.current;
-        else if (document.activeElement !== pinInputRef.current && document.activeElement !== confirmInputRef.current)
+        if (authMode === "PIN")
+          target =
+            passwordLength < 4 ? pinInputRef.current : confirmInputRef.current;
+        else if (
+          document.activeElement !== pinInputRef.current &&
+          document.activeElement !== confirmInputRef.current
+        )
           target = pinInputRef.current;
       }
       if (target && document.activeElement !== target) target.focus();

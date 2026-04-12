@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 
-const SENSITIVE_APPS = ["WhatsApp", "Slack", "Teams", "Telegram", "Instagram", "VS Code"];
+const SENSITIVE_APPS = [
+  "WhatsApp",
+  "Slack",
+  "Teams",
+  "Outlook",
+  "Chrome",
+  "AnyDesk",
+];
 
 interface UsePlaceholderResult {
   placeholder: string;
@@ -11,7 +18,7 @@ export function usePlaceholder(): UsePlaceholderResult {
   const [appIndex, setAppIndex] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [charIndex, setCharIndex] = useState(0);
-  // Use a ref for appIndex inside the effect to avoid stale closures
+
   const appIndexRef = useRef(appIndex);
   appIndexRef.current = appIndex;
 

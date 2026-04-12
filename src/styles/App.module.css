@@ -14,7 +14,6 @@
   background: transparent !important;
 }
 
-/* Onboarding */
 .onboarding {
   display: flex;
   flex-direction: column;
@@ -33,7 +32,9 @@
   transform: translate(-50%, -50%);
   width: 120%;
   height: 120%;
-  background: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle at 50% 50%,
+      rgba(59, 130, 246, 0.08) 0%,
+      transparent 70%);
   pointer-events: none;
   z-index: -1;
 }
@@ -70,7 +71,9 @@
   font-weight: 800;
   letter-spacing: -0.04em;
   line-height: 1;
-  background: linear-gradient(to bottom, #fff 40%, rgba(255, 255, 255, 0.7) 100%);
+  background: linear-gradient(to bottom,
+      #fff 40%,
+      rgba(255, 255, 255, 0.7) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -187,7 +190,6 @@
   letter-spacing: 0.1em;
 }
 
-/* Auth Cards */
 .authCard {
   width: 100%;
   max-width: 400px;
@@ -249,7 +251,6 @@
   gap: 0.5rem;
 }
 
-/* Dashboard - Modern & Minimal */
 .dashboard {
   width: 100%;
   height: 100%;
@@ -397,8 +398,6 @@
   color: #3b82f6 !important;
 }
 
-
-
 .headerLogo {
   height: 32px;
   width: auto;
@@ -438,8 +437,7 @@
   max-width: fit-content;
   margin: 0 auto;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow:
-    0 10px 30px -5px rgba(0, 0, 0, 0.5),
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
 }
 
@@ -505,8 +503,7 @@
 .tabActive {
   background: var(--accent-color) !important;
   color: #fff !important;
-  box-shadow:
-    0 8px 16px rgba(59, 130, 246, 0.25),
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.25),
     inset 0 1px 1px 0 rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
@@ -519,7 +516,6 @@
   padding: 0.75rem 0.5rem 1.5rem 0;
 }
 
-/* Custom Scrollbar */
 .appList::-webkit-scrollbar {
   width: 4px;
 }
@@ -605,7 +601,7 @@
   gap: 0.25rem;
   flex: 1;
   min-width: 0;
-  /* Critical for ellipsis to work in flex */
+
   overflow: hidden;
 }
 
@@ -790,12 +786,12 @@
   align-items: center;
   gap: 0.6rem;
   padding: 0.5rem 0.75rem;
-  color: #EF233C;
+  color: #ef233c;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   background: rgba(239, 35, 60, 0.05);
-  border-left: 2px solid #EF233C;
+  border-left: 2px solid #ef233c;
   border-radius: 4px;
   backdrop-filter: blur(4px);
   width: fit-content;
@@ -874,10 +870,13 @@
 }
 
 @keyframes loaderPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(0.9);
     opacity: 0.6;
   }
+
   50% {
     transform: scale(1.1);
     opacity: 1;
@@ -906,7 +905,6 @@
   margin: 0;
 }
 
-/* Unlock Screen - Minimal & Modern */
 .unlockScreen {
   display: flex;
   flex-direction: column;
@@ -996,7 +994,7 @@
 }
 
 .pinBoxError {
-  border-color: #EF233C !important;
+  border-color: #ef233c !important;
   background: rgba(239, 35, 60, 0.08) !important;
   box-shadow: 0 0 20px rgba(239, 35, 60, 0.15) !important;
 }
@@ -1030,7 +1028,7 @@
 }
 
 .modernInputError {
-  border-color: #EF233C !important;
+  border-color: #ef233c !important;
   background: rgba(239, 35, 60, 0.08) !important;
   box-shadow: 0 0 20px rgba(239, 35, 60, 0.15) !important;
 }
@@ -1145,7 +1143,6 @@
   margin-bottom: 0.5rem;
 }
 
-/* Premium Native Gatekeeper */
 .vscodeTheme {
   --accent-color: #007acc;
   background: var(--surface-color);
@@ -1160,7 +1157,7 @@
   justify-content: center;
   padding: 3rem;
   background: #0f1115;
-  /* Solid fallback */
+
   cursor: default;
   position: relative;
   overflow: hidden;
@@ -1220,7 +1217,7 @@
   font-size: 4rem;
   font-weight: 900;
   font-family: var(--font-geist);
-  color: #EF233C;
+  color: #ef233c;
   text-shadow: 0 0 40px rgba(239, 35, 60, 0.4);
 }
 
@@ -1233,7 +1230,6 @@
   width: 100%;
   position: relative;
   z-index: 101;
-  /* Above hidden input */
 }
 
 .keyHint {
@@ -1313,7 +1309,6 @@
   box-shadow: 0 0 15px var(--accent-color);
 }
 
-/* Re-enable pointer events for interactive elements */
 .cancelBtn,
 .pinDisplay {
   pointer-events: auto;
@@ -1327,7 +1322,7 @@
   height: 1px;
   opacity: 0;
   z-index: -1;
-  /* Move behind but stay focusable */
+
   pointer-events: none;
 }
 
@@ -1399,7 +1394,6 @@
   display: flex;
 }
 
-/* World-Class Minimal Settings UI */
 .settingsContainer {
   display: flex;
   width: 100%;
@@ -1412,7 +1406,7 @@
   background: rgba(0, 0, 0, 0.15);
   border-right: 1px solid var(--border-color);
   padding: 2rem 1rem 0;
-  /* Remove bottom padding */
+
   display: flex;
   flex-direction: column;
 }
@@ -1461,12 +1455,12 @@
 .settingsContent {
   flex: 1;
   padding: 3.5rem 5rem 0;
-  /* Removed bottom padding for sticky footer alignment */
+
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 2rem;
-  /* Consistent spacing between groups */
+
   scroll-behavior: smooth;
 }
 
@@ -1531,7 +1525,6 @@
   justify-content: flex-end;
 }
 
-/* Premium Pill Toggle */
 .miniToggle {
   display: flex;
   background: rgba(0, 0, 0, 0.3);
@@ -1559,9 +1552,7 @@
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-/* Standardized Premium Input/Select */
 .iconBtn,
-/* UNIFORM SETTINGS DESIGN SYSTEM */
 :root {
   --setting-control-height: 44px;
   --setting-control-radius: 12px;
@@ -1576,7 +1567,6 @@
   align-items: center;
 }
 
-/* Universal Styling for All Right-Side Controls */
 .iconBtn,
 .modernSelect,
 .miniToggle,
@@ -1596,7 +1586,6 @@
   box-sizing: border-box;
 }
 
-/* Specific Adjustments for Uniformity */
 .iconBtn {
   width: 180px;
   padding: 0 1.5rem;
@@ -1726,7 +1715,7 @@
 }
 
 .switch::before {
-  content: '';
+  content: "";
   position: absolute;
   width: 16px;
   height: 16px;
@@ -1742,7 +1731,6 @@
   left: 22px;
 }
 
-/* Interaction States */
 .iconBtn:hover,
 .modernSelect:hover,
 .switchContainer:hover {
@@ -1802,7 +1790,6 @@
   opacity: 0.6;
 }
 
-/* Restore Media Queries */
 @media (max-width: 768px) {
   .settingsContainer {
     flex-direction: column;
@@ -1918,7 +1905,6 @@
   transform: translateY(-2px);
 }
 
-/* Minimal Home Design */
 .homeMinimal {
   flex: 1;
   display: flex;
@@ -2051,8 +2037,6 @@
   transform: translateY(-1px);
 }
 
-
-/* Responsive Navigation */
 @media (max-width: 1200px) {
   .tabs {
     max-width: 750px;
@@ -2069,11 +2053,11 @@
   .navBrandName {
     display: none;
   }
-  
+
   .header {
     gap: 0.75rem;
   }
-  
+
   .headerTitleGroup {
     min-width: auto;
     flex: 0;
@@ -2148,8 +2132,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1) !important;
     border-radius: 22px;
     padding: 0.45rem;
-    box-shadow:
-      0 10px 30px -5px rgba(0, 0, 0, 0.5),
+    box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5),
       inset 0 1px 1px 0 rgba(255, 255, 255, 0.05);
     display: flex;
     justify-content: space-around;
@@ -2193,14 +2176,12 @@
   }
 }
 
-/* Contribution Section */
 .contributionGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-top: 2rem;
   margin-bottom: 4rem;
-  /* Added separation from workflow */
 }
 
 .contribCard {
@@ -2212,7 +2193,7 @@
   flex-direction: column;
   gap: 1.25rem;
   min-height: 160px;
-  /* Uniform height for grid alignment */
+
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   text-decoration: none;
   position: relative;
@@ -2281,9 +2262,6 @@
   letter-spacing: 0.05em;
 }
 
-
-
-/* Custom Premium Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -2489,7 +2467,6 @@
   z-index: 1000;
 }
 
-/* Home Tab - Minimal & Modern Premium Design */
 .homeMinimal {
   display: flex;
   flex-direction: column;
@@ -2532,7 +2509,7 @@
 }
 
 .statusShield::after {
-  content: '';
+  content: "";
   position: absolute;
   top: 50%;
   left: 50%;
@@ -2628,19 +2605,23 @@
   padding: 2rem 4rem;
   border-radius: 24px;
   backdrop-filter: blur(12px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2),
+    inset 0 1px 1px rgba(255, 255, 255, 0.05);
   position: relative;
   overflow: hidden;
 }
 
 .minimalStats::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 255, 255, 0.1),
+      transparent);
 }
 
 .minStat {
@@ -2715,7 +2696,6 @@
   }
 }
 
-/* Credits Section */
 .creditsGrid {
   display: flex;
   flex-direction: column;
@@ -2724,7 +2704,7 @@
 }
 
 .creditsCardMain {
-  background: #EF233C;
+  background: #ef233c;
   border: none;
   padding: 2.5rem;
   border-radius: 24px;

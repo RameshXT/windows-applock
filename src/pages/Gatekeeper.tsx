@@ -30,7 +30,7 @@ export const Gatekeeper = ({
   setError,
   config,
   handleGatekeeperUnlock,
-  closeWindow
+  closeWindow,
 }: GatekeeperProps) => {
   const [timeLeft, setTimeLeft] = useState(0);
 
@@ -75,43 +75,64 @@ export const Gatekeeper = ({
       className={clsx(styles.gatekeeperCard, styles.solidBg)}
     >
       <div className={styles.gatekeeperBrand}>
-        <motion.div 
-          initial={{ scale: 0.8, opacity: 0 }} 
-          animate={{ scale: 1, opacity: 1 }} 
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
           className={styles.appLogoContainer}
         >
-          {blockedApp?.icon ? <img src={blockedApp.icon} alt={blockedApp.name} className={styles.appLogo} /> : <Lock size={36} color="var(--accent-color)" />}
+          {blockedApp?.icon ? (
+            <img
+              src={blockedApp.icon}
+              alt={blockedApp.name}
+              className={styles.appLogo}
+            />
+          ) : (
+            <Lock size={36} color="var(--accent-color)" />
+          )}
         </motion.div>
         <h2 className={styles.gatekeeperTitle}>
-          {config.display_name ? `Welcome back, ${config.display_name}` : (blockedApp?.name || "Access Restricted")}
+          {config.display_name
+            ? `Welcome back, ${config.display_name}`
+            : blockedApp?.name || "Access Restricted"}
         </h2>
         <p className={styles.gatekeeperSubtitle}>
-           {blockedApp ? `Authenticate to access ${blockedApp.name}` : "Please verify your entry protocol"}
+          {blockedApp
+            ? `Authenticate to access ${blockedApp.name}`
+            : "Please verify your entry protocol"}
         </p>
       </div>
 
       {timeLeft > 0 ? (
         <div className={styles.lockoutContent}>
-           <motion.div 
-             initial={{ scale: 0.9, opacity: 0 }} 
-             animate={{ scale: 1, opacity: 1 }} 
-             className={styles.lockoutIcon}
-           >
-             <Timer size={40} color="#EF233C" />
-           </motion.div>
-           <h3 className={styles.lockoutTitle}>Security Lockout</h3>
-           <p className={styles.lockoutText}>Cooldown active. Try again in:</p>
-           <div className={styles.countdownTimer}>{timeLeft}s</div>
-           
-           {config.recovery_hint && (
-             <div className={styles.recoveryHintBox}>
-               <span className={styles.hintLabel}>Recovery Hint:</span>
-               <span className={styles.hintText}>{config.recovery_hint}</span>
-             </div>
-           )}
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={styles.lockoutIcon}
+          >
+            <Timer size={40} color="#EF233C" />
+          </motion.div>
+          <h3 className={styles.lockoutTitle}>Security Lockout</h3>
+          <p className={styles.lockoutText}>Cooldown active. Try again in:</p>
+          <div className={styles.countdownTimer}>{timeLeft}s</div>
+
+          {config.recovery_hint && (
+            <div className={styles.recoveryHintBox}>
+              <span className={styles.hintLabel}>Recovery Hint:</span>
+              <span className={styles.hintText}>{config.recovery_hint}</span>
+            </div>
+          )}
         </div>
       ) : (
-        <form onSubmit={handleGatekeeperUnlock} className={styles.gatekeeperForm} style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <form
+          onSubmit={handleGatekeeperUnlock}
+          className={styles.gatekeeperForm}
+          style={{
+            width: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+          }}
+        >
           {isLaunching ? (
             <div className={styles.launchingState}>
               <div className={styles.spinner} />
@@ -119,16 +140,26 @@ export const Gatekeeper = ({
             </div>
           ) : (
             <>
-              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2.5rem' }}>
+              <div
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "2.5rem",
+                }}
+              >
                 {authMode === "PIN" ? (
                   <div className={styles.pinDisplayGroup}>
-                    {[0, 1, 2, 3].map(i => (
-                      <div 
-                        key={i} 
+                    {[0, 1, 2, 3].map((i) => (
+                      <div
+                        key={i}
                         className={clsx(
-                          styles.pinBox, 
+                          styles.pinBox,
                           error && styles.pinBoxError,
-                          !error && gatekeeperPIN.length === i && styles.pinBoxActive, 
+                          !error &&
+                            gatekeeperPIN.length === i &&
+                            styles.pinBoxActive,
                           gatekeeperPIN.length > i && styles.pinBoxFilled
                         )}
                       >
@@ -137,17 +168,28 @@ export const Gatekeeper = ({
                     ))}
                   </div>
                 ) : (
-                  <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
-                    <input 
-                      ref={gatekeeperInputRef} 
-                      type="password" 
-                      className={clsx(styles.modernInput, error && styles.modernInputError)} 
-                      placeholder="Enter Password" 
-                      value={gatekeeperPIN} 
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "1.5rem",
+                    }}
+                  >
+                    <input
+                      ref={gatekeeperInputRef}
+                      type="password"
+                      className={clsx(
+                        styles.modernInput,
+                        error && styles.modernInputError
+                      )}
+                      placeholder="Enter Password"
+                      value={gatekeeperPIN}
                       onChange={(e) => {
                         if (error) setError?.(null);
                         setGatekeeperPIN(e.target.value);
-                      }} 
+                      }}
                     />
                     <motion.button
                       type="submit"
@@ -164,34 +206,56 @@ export const Gatekeeper = ({
               </div>
 
               <div className={styles.attemptInfo}>
-                 {attempts > 0 ? (
-                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'center' }}>
-                     <span style={{ color: attempts >= limit - 1 ? '#EF233C' : 'inherit' }}>
-                       {attempts} of {limit} attempts
-                     </span>
-                     {attempts >= 2 && config.recovery_hint && (
-                       <button 
-                         type="button" 
-                         className={styles.textLink}
-                         onClick={() => alert(`Your Hint: ${config.recovery_hint}`)}
-                       >
-                         Forgot? Get Hint
-                       </button>
-                     )}
-                   </div>
-                 ) : "Secure Session"}
+                {attempts > 0 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.4rem",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: attempts >= limit - 1 ? "#EF233C" : "inherit",
+                      }}
+                    >
+                      {attempts} of {limit} attempts
+                    </span>
+                    {attempts >= 2 && config.recovery_hint && (
+                      <button
+                        type="button"
+                        className={styles.textLink}
+                        onClick={() =>
+                          alert(`Your Hint: ${config.recovery_hint}`)
+                        }
+                      >
+                        Forgot? Get Hint
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  "Secure Session"
+                )}
               </div>
 
               <AnimatePresence>
                 {error && (
-                  <motion.div 
+                  <motion.div
                     initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
+                    animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    style={{ overflow: 'hidden', width: '100%', marginTop: '1.5rem' }}
+                    style={{
+                      overflow: "hidden",
+                      width: "100%",
+                      marginTop: "1.5rem",
+                    }}
                   >
-                    <div className={styles.errorMessage} style={{ width: '100%' }}>
-                      <AlertCircle size={14} /> 
+                    <div
+                      className={styles.errorMessage}
+                      style={{ width: "100%" }}
+                    >
+                      <AlertCircle size={14} />
                       {error}
                     </div>
                   </motion.div>
@@ -211,14 +275,27 @@ export const Gatekeeper = ({
                   value={gatekeeperPIN}
                   onChange={(e) => {
                     const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                    if (error && val.length < gatekeeperPIN.length) setError?.(null);
+                    if (error && val.length < gatekeeperPIN.length)
+                      setError?.(null);
                     setGatekeeperPIN(val);
                     if (val.length === 4) {
-                      handleGatekeeperUnlock({ preventDefault: () => {} } as React.FormEvent, val);
+                      handleGatekeeperUnlock(
+                        { preventDefault: () => {} } as React.FormEvent,
+                        val
+                      );
                     }
                   }}
                   onKeyDown={(e) => {
-                    if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Tab' && e.key !== 'Delete' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && !e.ctrlKey && !e.metaKey) {
+                    if (
+                      !/[0-9]/.test(e.key) &&
+                      e.key !== "Backspace" &&
+                      e.key !== "Tab" &&
+                      e.key !== "Delete" &&
+                      e.key !== "ArrowLeft" &&
+                      e.key !== "ArrowRight" &&
+                      !e.ctrlKey &&
+                      !e.metaKey
+                    ) {
                       e.preventDefault();
                     }
                   }}
@@ -231,9 +308,15 @@ export const Gatekeeper = ({
 
       <div className={styles.gatekeeperFooter}>
         <div className={styles.keyHint}>
-           <kbd>ESC</kbd> <span>to dismiss</span>
+          <kbd>ESC</kbd> <span>to dismiss</span>
         </div>
-        <button type="button" onClick={closeWindow} className={styles.cancelBtn}>Cancel & Block</button>
+        <button
+          type="button"
+          onClick={closeWindow}
+          className={styles.cancelBtn}
+        >
+          Cancel & Block
+        </button>
       </div>
     </motion.div>
   );

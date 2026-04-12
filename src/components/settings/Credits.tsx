@@ -21,13 +21,15 @@ export const Credits: React.FC<CreditsProps> = ({ appName }) => {
           rel="noopener noreferrer"
           className={styles.creditsCardMain}
         >
-          <div className={styles.creditsIcon}><Heart size={24} color="#fff" fill="#fff" /></div>
+          <div className={styles.creditsIcon}>
+            <Heart size={24} color="#fff" fill="#fff" />
+          </div>
           <div className={styles.creditsContent}>
             <span className={styles.creditsTitle}>Designed & Developed by</span>
-            <span className={styles.creditsDeveloperName}>
-              Ramesh XT
+            <span className={styles.creditsDeveloperName}>Ramesh XT</span>
+            <span className={styles.creditsDesc}>
+              A DevOps Engineer & Freelancer
             </span>
-            <span className={styles.creditsDesc}>A DevOps Engineer & Freelancer</span>
           </div>
         </a>
       </div>
