@@ -262,7 +262,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 2rem;
+  gap: 1rem;
   width: 100%;
   padding: 1.25rem 0;
   min-height: 85px;
@@ -302,52 +302,57 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 1.5rem;
-  min-width: 150px;
+  gap: 0.75rem;
+  min-width: 100px;
 }
 
-.logoutBtn {
-  width: 40px;
-  height: 40px;
+.combinedActions {
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 12px;
-  color: var(--text-secondary);
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
+  border-radius: 12px;
+  overflow: hidden;
   transition: all 0.2s;
 }
 
-.logoutBtn:hover {
-  background: rgba(239, 35, 60, 0.05);
-  color: var(--error-color);
-  border-color: rgba(239, 35, 60, 0.2);
-  opacity: 0.7;
-}
-
-.refreshBtn {
-  width: 40px;
-  height: 40px;
+.actionBtn {
+  width: 44px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-color);
-  transition: all 0.3s ease;
+  background: transparent;
+  border: none;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
-.refreshBtn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
+.actionBtn:hover:not(:disabled) {
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.actionBtn:last-child:hover:not(:disabled) {
+  background: rgba(239, 35, 60, 0.05);
+  color: var(--error-color);
+}
+
+.actionBtn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.actionDivider {
+  width: 1px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .refreshBtnRotating svg {
-  animation: rotate 1.5s linear infinite;
+  animation: rotate 1s linear infinite;
+  color: var(--accent-color);
 }
 
 @keyframes rotate {
@@ -801,11 +806,13 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-color);
   border-radius: 12px;
-  padding: 0.75rem 1.25rem;
+  padding: 0.65rem 1rem;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  width: 320px;
+  width: 100%;
+  max-width: 240px;
+  min-width: 120px;
   transition: all 0.2s;
 }
 
@@ -2037,6 +2044,21 @@
   .tab {
     padding: 0.5rem 1rem;
     font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .navBrandName {
+    display: none;
+  }
+  
+  .header {
+    gap: 0.75rem;
+  }
+  
+  .headerTitleGroup {
+    min-width: auto;
+    flex: 0;
   }
 }
 

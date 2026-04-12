@@ -136,20 +136,20 @@ export const Dashboard = ({
               />
             </div>
           )}
-          {activeTab !== "settings" && activeTab !== "home" && (
+          <div className={styles.combinedActions}>
             <button 
-              className={clsx(styles.refreshBtn, isScanning && styles.refreshBtnRotating)} 
+              className={clsx(styles.actionBtn, isScanning && styles.refreshBtnRotating)} 
               onClick={refreshApps} 
               title="Refresh App List"
               disabled={isScanning}
             >
               <RotateCcw size={18} />
             </button>
-          )}
-
-          <button className={styles.logoutBtn} onClick={handleLockSession} title="Lock Session">
-            <LogOut size={20} />
-          </button>
+            <div className={styles.actionDivider} />
+            <button className={styles.actionBtn} onClick={handleLockSession} title="Lock Session">
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </header>
 
