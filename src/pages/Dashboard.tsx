@@ -197,20 +197,36 @@ export const Dashboard = ({
 
               </div>
               <div className={styles.statusInfo}>
-                <div style={{ overflow: 'hidden' }}>
-                  <motion.h2 
-                    initial={{ y: "110%" }}
-                    animate={{ y: 0 }}
-                    transition={{ duration: 1.5, ease: [0.19, 1, 0.22, 1], delay: 0.2 }}
-                    className={styles.statusTitle}
-                  >
-                    {appName}
-                  </motion.h2>
-                </div>
+                <motion.h2 
+                  initial="hidden"
+                  animate="visible"
+                  variants={{
+                    visible: { transition: { staggerChildren: 0.03, delayChildren: 0.2 } }
+                  }}
+                  className={styles.statusTitle}
+                  style={{ display: 'flex', justifyContent: 'center', pointerEvents: 'none', flexWrap: 'wrap' }}
+                >
+                  {appName.split("").map((char, i) => (
+                    <span key={i} style={{ overflow: 'hidden', display: 'inline-block' }}>
+                      <motion.span
+                        style={{ display: 'inline-block' }}
+                        variants={{
+                          hidden: { y: "110%" },
+                          visible: { 
+                            y: 0, 
+                            transition: { duration: 1.2, ease: [0.19, 1, 0.22, 1] } 
+                          }
+                        }}
+                      >
+                        {char === " " ? "\u00A0" : char}
+                      </motion.span>
+                    </span>
+                  ))}
+                </motion.h2>
                 <motion.p 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4, duration: 0.5 }}
+                  transition={{ delay: 0.8, duration: 0.8 }}
                   className={styles.statusSubtitle}
                 >
                   System perimeter is currently secured
