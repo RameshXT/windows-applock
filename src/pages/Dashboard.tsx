@@ -193,7 +193,7 @@ export const Dashboard = ({
                 <img src={logo} style={{ width: 64, height: 64, objectFit: 'contain' }} alt="" />
               </div>
               <div className={styles.statusInfo}>
-                <h2 className={styles.statusTitle}>{appName} Active</h2>
+                <h2 className={styles.statusTitle}>{appName}</h2>
                 <p className={styles.statusSubtitle}>System perimeter is currently secured</p>
               </div>
             </div>
