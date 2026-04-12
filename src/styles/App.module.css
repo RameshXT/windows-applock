@@ -2503,47 +2503,59 @@
   position: relative;
 }
 
-.statusCircle {
-  width: 140px;
-  height: 140px;
-  border-radius: 50%;
-  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.12), transparent 70%);
+.statusShield {
+  width: 180px;
+  height: 180px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  box-shadow: inset 0 0 60px rgba(59, 130, 246, 0.05);
-  border: 1px solid rgba(59, 130, 246, 0.1);
-  backdrop-filter: blur(10px);
+  margin-bottom: 0.5rem;
 }
 
-.statusCircle::before {
-  content: '';
+.shieldBaseIcon {
+  color: var(--accent-color);
+  opacity: 0.12;
+  stroke-width: 1.5px;
+  filter: drop-shadow(0 0 25px rgba(59, 130, 246, 0.4));
   position: absolute;
-  top: -1px; left: -1px; right: -1px; bottom: -1px;
-  border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent 0%, rgba(59, 130, 246, 0.4) 50%, transparent 100%);
-  animation: rotateGlowing 4s linear infinite;
-  z-index: -1;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: shieldPulse 4s ease-in-out infinite;
 }
 
-.statusCircle::after {
+.statusShield::after {
   content: '';
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 80px;
-  height: 80px;
+  width: 100px;
+  height: 100px;
   background: var(--accent-color);
-  opacity: 0.2;
-  filter: blur(30px);
+  opacity: 0.15;
+  filter: blur(40px);
   border-radius: 50%;
   z-index: -1;
 }
 
-@keyframes rotateGlowing {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+@keyframes shieldPulse {
+  0%, 100% { opacity: 0.1; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.2; transform: translate(-50%, -50%) scale(1.08); }
+}
+
+.statusLogoImage {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+  z-index: 5;
+  filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.2));
+  animation: logoFloat 6s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 .statusInfo {

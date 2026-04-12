@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Unlock, Search, ArrowRight, LogOut, Settings, RotateCcw, Home, CheckSquare, Square, Trash2, X, MousePointer2, Monitor } from "lucide-react";
+import { Lock, Unlock, Search, ArrowRight, LogOut, Settings, RotateCcw, Home, CheckSquare, Square, Trash2, X, MousePointer2, Monitor, Shield } from "lucide-react";
 import { useState, useMemo } from "react";
 import clsx from "clsx";
 import styles from "../styles/App.module.css";
@@ -189,8 +189,9 @@ export const Dashboard = ({
             className={styles.homeMinimal}
           >
             <div className={styles.homeStatusSection}>
-              <div className={styles.statusCircle}>
-                <img src={logo} style={{ width: 64, height: 64, objectFit: 'contain' }} alt="" />
+              <div className={styles.statusShield}>
+                <Shield className={styles.shieldBaseIcon} size={140} />
+                <img src={logo} className={styles.statusLogoImage} alt="" />
               </div>
               <div className={styles.statusInfo}>
                 <h2 className={styles.statusTitle}>{appName}</h2>
