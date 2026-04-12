@@ -107,6 +107,7 @@ export const Dashboard = ({
         </AnimatePresence>
         <div className={styles.headerTitleGroup}>
           <img src={logo} className={styles.headerLogo} alt={`${appName} Logo`} />
+          <span className={styles.navBrandName}>AppLock</span>
         </div>
 
         <div className={styles.tabs}>
