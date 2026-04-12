@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Unlock, Search, ArrowRight, LogOut, Settings, RotateCcw, Home, CheckSquare, Square, Trash2, X, MousePointer2, Monitor, Shield } from "lucide-react";
+import { Lock, Unlock, Search, LogOut, Settings, RotateCcw, Home, CheckSquare, Square, Trash2, X, MousePointer2, Monitor, Shield } from "lucide-react";
 import { useState, useMemo } from "react";
 import clsx from "clsx";
 import styles from "../styles/App.module.css";
