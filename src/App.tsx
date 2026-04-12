@@ -421,12 +421,12 @@ function App() {
             refreshApps={fetchDetailedApps}
             bulkUnlock={bulkUnlock}
             settingsTab={settingsTab} setSettingsTab={setSettingsTab} authMode={authMode} setAuthMode={setAuthMode}
-            setView={(v) => {
+            setView={(v: string) => {
               if (v === "setup") {
                  setIsUpdatingFromSettings(true);
                  setView("verify");
               } else {
-                 setView(v);
+                 setView(v as View);
               }
             }}
             setIsUpdatingFromSettings={setIsUpdatingFromSettings} config={config}
