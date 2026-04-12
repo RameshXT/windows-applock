@@ -22,7 +22,11 @@ export interface AppConfig {
   attempt_limit?: number;
   lockout_duration?: number;
   autostart?: boolean;
-  theme?: "dark" | "light";
+  minimize_to_tray?: boolean;
+  stealth_mode?: boolean;
+  notifications_enabled?: boolean;
+  animations_intensity?: "high" | "low";
+  autolock_on_sleep?: boolean;
   wrong_attempts?: number;
   lockout_until?: number;
 }

@@ -144,6 +144,18 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
                 let already_active = {
                     let mut active = state.active_blocked_app.lock().unwrap();
                     let is_same = active.as_ref().map(|a| a.id == app.id).unwrap_or(false);
+                    
+                    // Notifications logic (if enabled)
+                    let cfg = state.config.lock().unwrap();
+                    if !is_same && cfg.notifications_enabled.unwrap_or(true) {
+                        use tauri_plugin_notification::NotificationExt;
+                        let _ = app_handle.notification()
+                            .builder()
+                            .title("Application Blocked")
+                            .body(format!("{} has been restricted by Windows AppLock.", app.name))
+                            .show();
+                    }
+                    
                     *active = Some(app.clone());
                     is_same
                 };

@@ -23,11 +23,14 @@ pub struct AppConfig {
     pub hashed_password: String,
     pub locked_apps: Vec<LockedApp>,
     pub auth_mode: Option<AuthMode>,
-    // New Settings
     pub attempt_limit: Option<u32>,
     pub lockout_duration: Option<u32>, // in seconds
     pub autostart: Option<bool>,
-    pub theme: Option<String>, // "dark" | "light"
+    pub minimize_to_tray: Option<bool>,
+    pub stealth_mode: Option<bool>,
+    pub notifications_enabled: Option<bool>,
+    pub animations_intensity: Option<String>,
+    pub autolock_on_sleep: Option<bool>,
     pub wrong_attempts: Option<u32>,
     pub lockout_until: Option<u64>, // timestamp
 }

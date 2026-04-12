@@ -46,7 +46,7 @@ pub async fn get_config(state: State<'_, Arc<AppState>>) -> Result<AppConfig, St
 }
 
 #[tauri::command]
-pub async fn update_settings(new_config: AppConfig, state: State<'_, Arc<AppState>>) -> Result<(), String> {
+pub async fn update_settings(new_config: AppConfig, state: State<'_, Arc<AppState>>, app_handle: AppHandle) -> Result<(), String> {
     let mut config = state.config.lock().unwrap();
     
     // If autostart changed, update registry
@@ -64,6 +64,13 @@ pub async fn update_settings(new_config: AppConfig, state: State<'_, Arc<AppStat
                     let _: std::io::Result<()> = run_key.delete_value("AppLock");
                 }
             }
+        }
+    }
+
+    // Handle stealth_mode (Skip taskbar)
+    if config.stealth_mode != new_config.stealth_mode {
+        if let Some(window) = app_handle.get_webview_window("main") {
+            let _ = window.set_skip_taskbar(new_config.stealth_mode.unwrap_or(false));
         }
     }
 

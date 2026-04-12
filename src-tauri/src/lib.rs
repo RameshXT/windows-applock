@@ -16,6 +16,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let config_path = app.path().app_config_dir().unwrap();
             fs::create_dir_all(&config_path).unwrap();
@@ -39,6 +40,43 @@ pub fn run() {
             
             app.manage(state.clone());
             
+            // --- TRAY SETUP ---
+            let quit_i = tauri::menu::MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).unwrap();
+            let show_i = tauri::menu::MenuItem::with_id(app, "show", "Show App", true, None::<&str>).unwrap();
+            let menu = tauri::menu::Menu::with_items(app, &[&show_i, &quit_i]).unwrap();
+
+            let _tray = tauri::tray::TrayIconBuilder::with_id("tray")
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .on_menu_event(|app, event| {
+                    match event.id.as_ref() {
+                        "quit" => { app.exit(0); }
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.unminimize();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let tauri::tray::TrayIconEvent::Click { 
+                        button: tauri::tray::MouseButton::Left, 
+                        button_state: tauri::tray::MouseButtonState::Up, .. 
+                    } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+            // ------------------
+
             let app_handle = app.handle().clone();
             let monitor_state = state.clone();
             tauri::async_runtime::spawn(async move {
@@ -47,6 +85,10 @@ pub fn run() {
 
             // Start window in maximized mode with 75% width and 80% height minimum size
             if let Some(window) = app.get_webview_window("main") {
+                let config = state.config.lock().unwrap();
+                let is_stealth = config.stealth_mode.unwrap_or(false);
+                let _ = window.set_skip_taskbar(is_stealth);
+
                 if let Ok(Some(monitor)) = window.primary_monitor() {
                     let size = monitor.size();
                     let min_width = (size.width as f64 * 0.75) as u32;
@@ -76,9 +118,15 @@ pub fn run() {
                     *was_max = is_max;
                 }
             }
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 let state = window.state::<Arc<AppState>>();
                 if window.label() == "main" {
+                    let config = state.config.lock().unwrap();
+                    if config.minimize_to_tray.unwrap_or(false) {
+                        api.prevent_close();
+                        window.hide().unwrap();
+                        return;
+                    }
                     let mut unlocked = state.is_unlocked.lock().unwrap();
                     *unlocked = false;
                 } else if window.label() == "gatekeeper" {

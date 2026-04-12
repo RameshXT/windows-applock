@@ -103,7 +103,6 @@ function App() {
         const cfg = await invoke<AppConfig>("get_config");
         setConfig(cfg);
         if (cfg.auth_mode) setAuthMode(cfg.auth_mode);
-        if (cfg.theme) document.documentElement.setAttribute("data-theme", cfg.theme);
 
         const isSetup = await invoke<boolean>("check_setup");
         if (!isSetup) {
@@ -137,7 +136,18 @@ function App() {
       }
     };
     init();
+  }, []);
 
+  // Apply visual settings dynamically
+  useEffect(() => {
+    if (config.animations_intensity === "low") {
+      document.documentElement.setAttribute("data-reduced-motion", "true");
+    } else {
+      document.documentElement.removeAttribute("data-reduced-motion");
+    }
+  }, [config.animations_intensity]);
+
+  useEffect(() => {
     const unlisten = listen<LockedApp>("app-blocked", async (event) => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const currentWin = getCurrentWindow();
@@ -310,7 +320,6 @@ function App() {
     const newConfig = { ...config, ...updates };
     setConfig(newConfig);
     if (updates.auth_mode) setAuthMode(updates.auth_mode);
-    if (updates.theme) document.documentElement.setAttribute("data-theme", updates.theme);
     try { await invoke("update_settings", { newConfig }); } catch (err) { setError(String(err)); }
   };
 
@@ -375,6 +384,16 @@ function App() {
 
   return (
     <div className={clsx(styles.container, view === 'gatekeeper' && styles.transparentBg)}>
+      <AnimatePresence>
+        {view === 'gatekeeper' && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className={styles.gatekeeperOverlay} 
+          />
+        )}
+      </AnimatePresence>
       <AnimatePresence mode="wait">
         {view === "onboarding" && <Onboarding appName={APP_NAME} onContinue={() => setView('setup')} />}
         {view === "setup" && (

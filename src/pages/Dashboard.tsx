@@ -320,15 +320,62 @@ export const Dashboard = ({
                       </div>
                     </div>
                   </div>
+
                   <div className={styles.settingRow}>
                     <div className={styles.settingLabel}>
-                      <span>Appearance Mode</span>
-                      <span>Select your preferred visual style.</span>
+                      <span>Background Behavior</span>
+                      <span>Manage how {appName} stays active in your system.</span>
                     </div>
                     <div className={styles.settingControl}>
-                      <div className={styles.miniToggle}>
-                        <button className={clsx(config.theme === "dark" && styles.miniToggleActive)} onClick={() => updateConfig({ theme: "dark" })}>Dark</button>
-                        <button className={clsx(config.theme === "light" && styles.miniToggleActive)} onClick={() => updateConfig({ theme: "light" })}>Light</button>
+                      <div className={styles.stackCheck}>
+                        <button 
+                          className={clsx(styles.checkBtn, config.minimize_to_tray && styles.checkBtnActive)}
+                          onClick={() => updateConfig({ minimize_to_tray: !config.minimize_to_tray })}
+                        >
+                          {config.minimize_to_tray ? "Minimize to Tray" : "Standard Exit"}
+                        </button>
+                        <button 
+                          className={clsx(styles.checkBtn, config.stealth_mode && styles.checkBtnActive)}
+                          onClick={() => updateConfig({ stealth_mode: !config.stealth_mode })}
+                        >
+                          {config.stealth_mode ? "Taskbar Hidden" : "Taskbar Visible"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.settingRow}>
+                    <div className={styles.settingLabel}>
+                      <span>Experience Quality</span>
+                      <span>Optimize responsiveness and interaction feel.</span>
+                    </div>
+                    <div className={styles.settingControl}>
+                       <div className={styles.miniToggle}>
+                        <button className={clsx((config.animations_intensity === "high" || !config.animations_intensity) && styles.miniToggleActive)} onClick={() => updateConfig({ animations_intensity: "high" })}>Premium</button>
+                        <button className={clsx(config.animations_intensity === "low" && styles.miniToggleActive)} onClick={() => updateConfig({ animations_intensity: "low" })}>Lite</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.settingRow}>
+                    <div className={styles.settingLabel}>
+                      <span>System Events</span>
+                      <span>Automate security triggers based on system state.</span>
+                    </div>
+                    <div className={styles.settingControl}>
+                      <div className={styles.stackCheck}>
+                        <button 
+                          className={clsx(styles.checkBtn, config.autolock_on_sleep && styles.checkBtnActive)}
+                          onClick={() => updateConfig({ autolock_on_sleep: !config.autolock_on_sleep })}
+                        >
+                          {config.autolock_on_sleep ? "Auto-Lock on Sleep" : "Ignore Sleep"}
+                        </button>
+                        <button 
+                          className={clsx(styles.checkBtn, (config.notifications_enabled || config.notifications_enabled === undefined) && styles.checkBtnActive)}
+                          onClick={() => updateConfig({ notifications_enabled: !config.notifications_enabled })}
+                        >
+                          {(config.notifications_enabled || config.notifications_enabled === undefined) ? "Notifications On" : "Notifications Off"}
+                        </button>
                       </div>
                     </div>
                   </div>
