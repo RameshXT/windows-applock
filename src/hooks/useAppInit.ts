@@ -1,63 +1,41 @@
-import { useState, useEffect, Dispatch, SetStateAction } from "react";
-import { Tab, AppConfig, AuthMode, LockedApp, InstalledApp } from "../types";
+import { useState, useEffect } from "react";
+import { View, Tab, AppConfig, AuthMode, LockedApp } from "../types";
 import { getConfig, checkSetup, getIsUnlocked } from "../services/auth.service";
-import { getLockedApps, getDetailedApps } from "../services/apps.service";
+import { getLockedApps } from "../services/apps.service";
 import { getBlockedApp } from "../services/system.service";
 import { listen } from "@tauri-apps/api/event";
+import { STORAGE_KEYS, RESTORABLE_VIEWS } from "../constants";
 
 interface AppInitOptions {
-  locked_apps: LockedApp[];
-  auth_mode: AuthMode;
-  attempt_limit: number;
-  lockout_duration: number;
+  setConfig: (cfg: AppConfig) => void;
+  setAuthMode: (mode: AuthMode) => void;
+  setLockedApps: React.Dispatch<React.SetStateAction<LockedApp[]>>;
+  fetchDetailedApps: () => Promise<void>;
+  setGatekeeperPIN: (pin: string) => void;
+  setError: (err: string | null) => void;
+  onSetView: (view: View) => void;
 }
 
 interface AppInitResult {
-  config: AppConfig;
-  setConfig: Dispatch<SetStateAction<AppConfig>>;
-  authMode: AuthMode;
-  setAuthMode: Dispatch<SetStateAction<AuthMode>>;
-  lockedApps: LockedApp[];
-  setLockedApps: Dispatch<SetStateAction<LockedApp[]>>;
-  allApps: InstalledApp[];
-  isScanning: boolean;
   blockedApp: LockedApp | null;
-  setBlockedApp: Dispatch<SetStateAction<LockedApp | null>>;
-  gatekeeperPIN: string;
-  setGatekeeperPIN: Dispatch<SetStateAction<string>>;
   activeTab: Tab;
-  setActiveTab: Dispatch<SetStateAction<Tab>>;
+  setActiveTab: React.Dispatch<React.SetStateAction<Tab>>;
   settingsTab: string;
-  setSettingsTab: Dispatch<SetStateAction<string>>;
-  fetchDetailedApps: () => Promise<void>;
+  setSettingsTab: React.Dispatch<React.SetStateAction<string>>;
 }
 
-export function useAppInit(defaultConfig: AppInitOptions): AppInitResult {
-  const [config, setConfig] = useState<AppConfig>(defaultConfig);
-  const [authMode, setAuthMode] = useState<AuthMode>(defaultConfig.auth_mode);
-  const [lockedApps, setLockedApps] = useState<LockedApp[]>([]);
-  const [allApps, setAllApps] = useState<InstalledApp[]>([]);
-  const [isScanning, setIsScanning] = useState(false);
+/**
+ * Bootstraps the application on startup and manages global event listeners.
+ * Takes external setters so it can hydrate other hooks without owning their state.
+ */
+export function useAppInit(options: AppInitOptions): AppInitResult {
   const [blockedApp, setBlockedApp] = useState<LockedApp | null>(null);
-  const [gatekeeperPIN, setGatekeeperPIN] = useState("");
   const [activeTab, setActiveTab] = useState<Tab>(
-    () => (localStorage.getItem("applock_tab") as Tab) || "home"
+    () => (localStorage.getItem(STORAGE_KEYS.TAB) as Tab) || "home"
   );
   const [settingsTab, setSettingsTab] = useState(
-    () => localStorage.getItem("applock_settings_tab") || "account"
+    () => localStorage.getItem(STORAGE_KEYS.SETTINGS_TAB) || "account"
   );
-
-  const fetchDetailedApps = async () => {
-    try {
-      setIsScanning(true);
-      const apps = await getDetailedApps();
-      setAllApps(apps);
-    } catch (err) {
-      console.error("Failed to fetch apps:", err);
-    } finally {
-      setIsScanning(false);
-    }
-  };
 
   useEffect(() => {
     const init = async () => {
@@ -67,11 +45,12 @@ export function useAppInit(defaultConfig: AppInitOptions): AppInitResult {
 
         if (currentWin.label === "gatekeeper") {
           const cfg = await getConfig();
-          setConfig(cfg);
-          if (cfg.auth_mode) setAuthMode(cfg.auth_mode);
+          options.setConfig(cfg);
+          if (cfg.auth_mode) options.setAuthMode(cfg.auth_mode);
           const blocked = await getBlockedApp();
           if (blocked) {
             setBlockedApp(blocked);
+            options.onSetView("gatekeeper");
           } else {
             currentWin.close();
           }
@@ -79,58 +58,61 @@ export function useAppInit(defaultConfig: AppInitOptions): AppInitResult {
         }
 
         const cfg = await getConfig();
-        setConfig(cfg);
-        if (cfg.auth_mode) setAuthMode(cfg.auth_mode);
+        options.setConfig(cfg);
+        if (cfg.auth_mode) options.setAuthMode(cfg.auth_mode);
 
         const isSetup = await checkSetup();
-        if (!isSetup) return; // view is set by App.tsx via returned state
+        if (!isSetup) { options.onSetView("onboarding"); return; }
 
         const isUnlocked = await getIsUnlocked();
-        const persistedTab = localStorage.getItem("applock_tab") as Tab;
-        const persistedSettingsTab = localStorage.getItem("applock_settings_tab");
-        if (persistedTab) setActiveTab(persistedTab);
-        if (persistedSettingsTab) setSettingsTab(persistedSettingsTab);
+        if (isUnlocked) {
+          const persistedView = localStorage.getItem(STORAGE_KEYS.VIEW) as View;
+          if (persistedView && (RESTORABLE_VIEWS as readonly string[]).includes(persistedView)) {
+            options.onSetView(persistedView);
+          } else {
+            options.onSetView("dashboard");
+          }
+          const persistedTab = localStorage.getItem(STORAGE_KEYS.TAB) as Tab;
+          const persistedSettingsTab = localStorage.getItem(STORAGE_KEYS.SETTINGS_TAB);
+          if (persistedTab) setActiveTab(persistedTab);
+          if (persistedSettingsTab) setSettingsTab(persistedSettingsTab);
+        } else {
+          options.onSetView("unlock");
+        }
 
         const locked = await getLockedApps();
-        setLockedApps(locked);
-        if (isUnlocked) fetchDetailedApps();
+        options.setLockedApps(locked);
+        options.fetchDetailedApps();
       } catch (err) {
         console.error(err);
       }
     };
     init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Listen for blocked app events from the system monitor
+  // Monitor events: blocked app and full reload
   useEffect(() => {
     const unlisten = listen<LockedApp>("app-blocked", async (event) => {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const currentWin = getCurrentWindow();
       if (currentWin.label === "gatekeeper") {
         setBlockedApp(event.payload);
-        setGatekeeperPIN("");
+        options.setGatekeeperPIN("");
+        options.setError(null);
+        currentWin.unminimize();
+        currentWin.setFocus();
       }
     });
 
-    const unlistenReload = listen("reload-app", () => {
-      window.location.reload();
-    });
+    const unlistenReload = listen("reload-app", () => window.location.reload());
 
     return () => {
       unlisten.then(f => f());
       unlistenReload.then(f => f());
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return {
-    config, setConfig,
-    authMode, setAuthMode,
-    lockedApps, setLockedApps,
-    allApps, isScanning,
-    blockedApp, setBlockedApp,
-    gatekeeperPIN, setGatekeeperPIN,
-    activeTab, setActiveTab,
-    settingsTab, setSettingsTab,
-    fetchDetailedApps,
-  };
+  return { blockedApp, activeTab, setActiveTab, settingsTab, setSettingsTab };
 }

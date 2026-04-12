@@ -1,8 +1,14 @@
 use std::sync::Arc;
 use tauri::State;
 use crate::models::{AppState, LockedApp};
-use crate::services::{scanner, process_win};
+use crate::services::{scanner, process_win, detailed_scanner};
 use crate::utils::config::save_config;
+
+/// Returns the full enriched list of installed applications (registry + Store).
+#[tauri::command]
+pub async fn get_detailed_apps() -> Result<Vec<detailed_scanner::DetailedApp>, String> {
+    detailed_scanner::get_detailed_apps_inner().await
+}
 
 /// Returns the full list of installed applications with icons and metadata.
 #[tauri::command]

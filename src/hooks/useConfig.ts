@@ -2,6 +2,13 @@ import { useState, useEffect } from "react";
 import { AppConfig, AuthMode } from "../types";
 import { updateSettings } from "../services/config.service";
 
+const DEFAULT_CONFIG: AppConfig = {
+  locked_apps: [],
+  auth_mode: "PIN",
+  attempt_limit: 5,
+  lockout_duration: 60,
+};
+
 interface UseConfigResult {
   config: AppConfig;
   setConfig: React.Dispatch<React.SetStateAction<AppConfig>>;
@@ -10,21 +17,17 @@ interface UseConfigResult {
   updateConfig: (updates: Partial<AppConfig>) => Promise<void>;
 }
 
-const DEFAULT_CONFIG: AppConfig = {
-  locked_apps: [],
-  auth_mode: "PIN",
-  attempt_limit: 5,
-  lockout_duration: 60,
-};
-
+/**
+ * Owns all configuration state and the updateConfig action.
+ * Expose `setConfig` so `useAppInit` can hydrate config on startup.
+ */
 export function useConfig(
-  initialConfig?: AppConfig,
-  setError?: React.Dispatch<React.SetStateAction<string | null>>
+  setError?: (err: string | null) => void
 ): UseConfigResult {
-  const [config, setConfig] = useState<AppConfig>(initialConfig ?? DEFAULT_CONFIG);
-  const [authMode, setAuthMode] = useState<AuthMode>(initialConfig?.auth_mode ?? "PIN");
+  const [config, setConfig] = useState<AppConfig>(DEFAULT_CONFIG);
+  const [authMode, setAuthMode] = useState<AuthMode>("PIN");
 
-  // Apply visual settings dynamically when intensity changes
+  // Apply animation intensity setting when it changes
   useEffect(() => {
     if (config.animations_intensity === "low") {
       document.documentElement.setAttribute("data-reduced-motion", "true");

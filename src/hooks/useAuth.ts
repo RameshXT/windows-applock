@@ -2,6 +2,13 @@ import { useState, Dispatch, SetStateAction } from "react";
 import { View, AuthMode, AppConfig } from "../types";
 import { setupPassword, verifyPassword, verifyGatekeeper, getConfig } from "../services/auth.service";
 
+interface SetupContext {
+  isUpdating: boolean;
+  setView: Dispatch<SetStateAction<View | null>>;
+  setIsUpdatingFromSettings: Dispatch<SetStateAction<boolean>>;
+  setShowUpdateSuccess: Dispatch<SetStateAction<boolean>>;
+}
+
 interface UseAuthResult {
   password: string;
   setPassword: Dispatch<SetStateAction<string>>;
@@ -13,28 +20,12 @@ interface UseAuthResult {
   setError: Dispatch<SetStateAction<string | null>>;
   isCompleting: boolean;
   completingStep: number;
-  handleSetup: (
-    e: React.FormEvent,
-    authMode: AuthMode,
-    isUpdatingFromSettings: boolean,
-    setView: Dispatch<SetStateAction<View | null>>,
-    setIsUpdatingFromSettings: Dispatch<SetStateAction<boolean>>,
-    setShowUpdateSuccess: Dispatch<SetStateAction<boolean>>
-  ) => Promise<void>;
-  handleUnlock: (
-    e: React.FormEvent,
-    view: View | null,
-    setView: Dispatch<SetStateAction<View | null>>,
-    passwordOverride?: string
-  ) => Promise<void>;
-  handleGatekeeperUnlock: (
-    e: React.FormEvent,
-    blockedApp: unknown,
-    setConfig: Dispatch<SetStateAction<AppConfig>>,
-    passwordOverride?: string
-  ) => Promise<void>;
+  handleSetup: (e: React.FormEvent, authMode: AuthMode, ctx: SetupContext) => Promise<void>;
+  handleUnlock: (e: React.FormEvent, view: View | null, setView: Dispatch<SetStateAction<View | null>>, override?: string) => Promise<void>;
+  handleGatekeeperUnlock: (e: React.FormEvent, blockedApp: unknown, setConfig: Dispatch<SetStateAction<AppConfig>>, override?: string) => Promise<void>;
 }
 
+/** Owns all authentication state and handlers. */
 export function useAuth(): UseAuthResult {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -46,10 +37,7 @@ export function useAuth(): UseAuthResult {
   const handleSetup = async (
     e: React.FormEvent,
     authMode: AuthMode,
-    isUpdatingFromSettings: boolean,
-    setView: Dispatch<SetStateAction<View | null>>,
-    setIsUpdatingFromSettings: Dispatch<SetStateAction<boolean>>,
-    setShowUpdateSuccess: Dispatch<SetStateAction<boolean>>
+    ctx: SetupContext
   ) => {
     e.preventDefault();
     if (authMode === "PIN" && !/^\d{4}$/.test(password)) {
@@ -63,11 +51,11 @@ export function useAuth(): UseAuthResult {
     try {
       await setupPassword(password, authMode);
       setError(null);
-      if (isUpdatingFromSettings) {
-        setShowUpdateSuccess(true);
-        setView("dashboard");
-        setIsUpdatingFromSettings(false);
-        setTimeout(() => setShowUpdateSuccess(false), 3000);
+      if (ctx.isUpdating) {
+        ctx.setShowUpdateSuccess(true);
+        ctx.setView("dashboard");
+        ctx.setIsUpdatingFromSettings(false);
+        setTimeout(() => ctx.setShowUpdateSuccess(false), 3000);
       } else {
         setIsCompleting(true);
         const messages = ["Great! You're all set.", "We're preparing your perimeter..", "One moment..", "Here we go!"];
@@ -75,7 +63,7 @@ export function useAuth(): UseAuthResult {
           setCompletingStep(i);
           await new Promise(r => setTimeout(r, 1400));
         }
-        setView("dashboard");
+        ctx.setView("dashboard");
         setIsCompleting(false);
       }
     } catch (err) {
@@ -87,10 +75,10 @@ export function useAuth(): UseAuthResult {
     e: React.FormEvent,
     view: View | null,
     setView: Dispatch<SetStateAction<View | null>>,
-    passwordOverride?: string
+    override?: string
   ) => {
     if (e) e.preventDefault();
-    const passwordToVerify = passwordOverride || password;
+    const passwordToVerify = override || password;
     try {
       const isValid = await verifyPassword(passwordToVerify);
       if (isValid) {
@@ -110,10 +98,10 @@ export function useAuth(): UseAuthResult {
     e: React.FormEvent,
     blockedApp: unknown,
     setConfig: Dispatch<SetStateAction<AppConfig>>,
-    passwordOverride?: string
+    override?: string
   ) => {
     if (e) e.preventDefault();
-    const pinToVerify = passwordOverride || gatekeeperPIN;
+    const pinToVerify = override || gatekeeperPIN;
     if (!blockedApp) return;
     try {
       const isValid = await verifyGatekeeper(pinToVerify);

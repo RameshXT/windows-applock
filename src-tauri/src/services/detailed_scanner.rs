@@ -5,7 +5,6 @@ use std::path::Path;
 use base64::{Engine as _, engine::general_purpose};
 use std::io::Cursor;
 use image::ImageFormat;
-use tauri::command;
 
 // System package prefixes to skip
 const SKIP_PREFIXES: &[&str] = &[
@@ -34,8 +33,8 @@ pub struct DetailedApp {
     pub icon_base64: String,
 }
 
-#[command]
-pub async fn get_detailed_apps() -> Result<Vec<DetailedApp>, String> {
+/// Core scanner logic — called by the `get_detailed_apps` command in `commands/apps.rs`.
+pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
     let mut apps = Vec::new();
     let mut seen_names = std::collections::HashSet::new();
 

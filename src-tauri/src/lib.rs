@@ -2,11 +2,12 @@ pub mod models;
 pub mod services;
 pub mod commands;
 pub mod utils;
+pub mod setup;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
 use tauri::Manager;
-use crate::models::{AppState};
+use crate::models::AppState;
 use crate::utils::config::load_config;
 use crate::services::monitor::start_monitor;
 
@@ -19,32 +20,14 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
-            // Register Panic Shortcut (Ctrl+Alt+L)
-            use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, Modifiers, Code, ShortcutState};
-            let panic_shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyL);
-            let _ = app.global_shortcut().on_shortcut(panic_shortcut, move |app, shortcut, event| {
-                if event.state() == ShortcutState::Pressed && shortcut == &panic_shortcut {
-                    let state = app.state::<Arc<AppState>>();
-                    let mut unlocked = state.is_unlocked.lock().unwrap();
-                    *unlocked = false;
-                    if let Some(window) = app.get_webview_window("main") {
-                         let _ = window.hide();
-                    }
-                    println!("[Panic] Security Lockdown Triggered.");
-                }
-            });
-            let _ = app.global_shortcut().register(panic_shortcut);
-
-            let config_path = app.path().app_config_dir().unwrap();
-            fs::create_dir_all(&config_path).unwrap();
+            let config_path = app.path().app_config_dir()?;
+            fs::create_dir_all(&config_path)?;
             let config_file = config_path.join("config.enc");
-            
             let config = load_config(&config_file);
-            let is_unlocked = false;
-            
+
             let state = Arc::new(AppState {
                 config: Mutex::new(config),
-                is_unlocked: Mutex::new(is_unlocked),
+                is_unlocked: Mutex::new(false),
                 config_path: config_file,
                 authorized_pids: Mutex::new(std::collections::HashSet::new()),
                 authorized_paths: Mutex::new(std::collections::HashMap::new()),
@@ -54,70 +37,20 @@ pub fn run() {
                 min_window_size: Mutex::new((800, 600)),
                 was_maximized: Mutex::new(true),
             });
-            
+
             app.manage(state.clone());
-            
-            // --- TRAY SETUP ---
-            let quit_i = tauri::menu::MenuItem::with_id(app, "quit", "Quit", true, None::<&str>).unwrap();
-            let show_i = tauri::menu::MenuItem::with_id(app, "show", "Show App", true, None::<&str>).unwrap();
-            let menu = tauri::menu::Menu::with_items(app, &[&show_i, &quit_i]).unwrap();
 
-            let _tray = tauri::tray::TrayIconBuilder::with_id("tray")
-                .icon(app.default_window_icon().unwrap().clone())
-                .menu(&menu)
-                .on_menu_event(|app, event| {
-                    match event.id.as_ref() {
-                        "quit" => { app.exit(0); }
-                        "show" => {
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.unminimize();
-                                let _ = window.set_focus();
-                            }
-                        }
-                        _ => {}
-                    }
-                })
-                .on_tray_icon_event(|tray, event| {
-                    if let tauri::tray::TrayIconEvent::Click { 
-                        button: tauri::tray::MouseButton::Left, 
-                        button_state: tauri::tray::MouseButtonState::Up, .. 
-                    } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.unminimize();
-                            let _ = window.set_focus();
-                        }
-                    }
-                })
-                .build(app)?;
-            // ------------------
+            // Delegate setup to dedicated modules
+            setup::shortcut::register_shortcuts(app, state.clone())?;
+            setup::tray::setup_tray(app, state.clone())?;
+            setup::window::setup_window(app, state.clone())?;
 
+            // Start the app monitor background task
             let app_handle = app.handle().clone();
-            let monitor_state = state.clone();
             tauri::async_runtime::spawn(async move {
-                start_monitor(app_handle, monitor_state).await;
+                start_monitor(app_handle, state).await;
             });
 
-            // Start window in maximized mode with 75% width and 80% height minimum size
-            if let Some(window) = app.get_webview_window("main") {
-                let config = state.config.lock().unwrap();
-                let is_stealth = config.stealth_mode.unwrap_or(false);
-                let _ = window.set_skip_taskbar(is_stealth);
-
-                if let Ok(Some(monitor)) = window.primary_monitor() {
-                    let size = monitor.size();
-                    let min_width = (size.width as f64 * 0.75) as u32;
-                    let min_height = (size.height as f64 * 0.80) as u32;
-                    let _ = window.set_min_size(Some(tauri::Size::Physical(tauri::PhysicalSize::new(min_width, min_height))));
-                    let mut mws = state.min_window_size.lock().unwrap();
-                    *mws = (min_width, min_height);
-                }
-                window.maximize()?;
-                window.show()?;
-            }
-            
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -126,10 +59,11 @@ pub fn run() {
                     let is_max = window.is_maximized().unwrap_or(false);
                     let state = window.state::<Arc<AppState>>();
                     let mut was_max = state.was_maximized.lock().unwrap();
-                    
                     if *was_max && !is_max {
                         let min_size = state.min_window_size.lock().unwrap();
-                        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(min_size.0, min_size.1)));
+                        let _ = window.set_size(tauri::Size::Physical(
+                            tauri::PhysicalSize::new(min_size.0, min_size.1),
+                        ));
                         let _ = window.center();
                     }
                     *was_max = is_max;
@@ -163,6 +97,7 @@ pub fn run() {
             // Apps domain
             commands::apps::get_apps,
             commands::apps::get_system_apps,
+            commands::apps::get_detailed_apps,
             commands::apps::save_selection,
             // Config domain
             commands::config::get_config,
@@ -171,8 +106,6 @@ pub fn run() {
             // System domain
             commands::system::get_blocked_app,
             commands::system::release_app,
-            // Scanner (standalone service command)
-            crate::services::detailed_scanner::get_detailed_apps
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

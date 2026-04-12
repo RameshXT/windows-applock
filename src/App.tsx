@@ -3,15 +3,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import styles from "./styles/App.module.css";
 import clsx from "clsx";
 
-// Types
-import { View, AppConfig } from "./types";
+// Types & Constants
+import { View } from "./types";
+import { APP_NAME, STORAGE_KEYS } from "./constants";
 
-// Hooks
-import { useAppInit } from "./hooks/useAppInit";
-import { useAuth } from "./hooks/useAuth";
-import { useApps } from "./hooks/useApps";
-import { useToast, useFocusGuard } from "./hooks/useToast";
-import { usePlaceholder } from "./hooks/usePlaceholder";
+// Hooks (barrel import)
+import { useAppInit, useAuth, useApps, useConfig, useToast, useFocusGuard, usePlaceholder } from "./hooks";
 
 // Pages
 import { Onboarding } from "./pages/Onboarding";
@@ -23,12 +20,9 @@ import { Gatekeeper } from "./pages/Gatekeeper";
 // Components
 import { ConfirmModals } from "./components/modals/ConfirmModals";
 
-// Services
-import { resetApp, updateSettings } from "./services/config.service";
+// Services (barrel import)
+import { resetApp, lockSession } from "./services";
 import { releaseApp } from "./services/system.service";
-import { lockSession, checkSetup, getIsUnlocked } from "./services/auth.service";
-
-const APP_NAME = "Windows AppLock";
 
 function App() {
   const [view, setView] = useState<View | null>(null);
@@ -38,33 +32,44 @@ function App() {
   const [isLaunching] = useState(false);
   const [search, setSearch] = useState("");
 
-  const { toast, showUpdateSuccess, setShowUpdateSuccess, triggerToast } = useToast();
-  const { placeholder } = usePlaceholder();
-
-  const {
-    config, setConfig, authMode, setAuthMode,
-    lockedApps, setLockedApps,
-    allApps, isScanning,
-    blockedApp,
-    gatekeeperPIN, setGatekeeperPIN,
-    activeTab, setActiveTab,
-    settingsTab, setSettingsTab,
-    fetchDetailedApps,
-  } = useAppInit({ locked_apps: [], auth_mode: "PIN", attempt_limit: 5, lockout_duration: 60 });
-
+  // Auth: owns password, confirmPassword, gatekeeperPIN, error, and all handlers
   const {
     password, setPassword,
     confirmPassword, setConfirmPassword,
+    gatekeeperPIN, setGatekeeperPIN,
     error, setError,
     isCompleting, completingStep,
     handleSetup, handleUnlock, handleGatekeeperUnlock,
   } = useAuth();
 
+  // Config: owns config, authMode, updateConfig — properly used (not dead code)
+  const { config, setConfig, authMode, setAuthMode, updateConfig } = useConfig(setError);
+
+  // Toast: owns toast state and triggerToast
+  const { toast, showUpdateSuccess, setShowUpdateSuccess, triggerToast } = useToast();
+
+  // Apps: owns lockedApps, allApps, scanning, and all app management handlers
   const {
+    lockedApps, setLockedApps,
+    allApps, isScanning, fetchDetailedApps,
     appToRemove, setAppToRemove,
     appsToBulkUnlock, setAppsToBulkUnlock,
     toggleApp, confirmRemoval, bulkUnlock, confirmBulkUnlock,
-  } = useApps();
+  } = useApps(triggerToast, setError);
+
+  // Placeholder: typing animation for search bar
+  const { placeholder } = usePlaceholder();
+
+  // AppInit: bootstraps app, hydrates other hooks via injected setters
+  const { blockedApp, activeTab, setActiveTab, settingsTab, setSettingsTab } = useAppInit({
+    setConfig,
+    setAuthMode,
+    setLockedApps,
+    fetchDetailedApps,
+    setGatekeeperPIN,
+    setError,
+    onSetView: (v) => setView(v),
+  });
 
   const pinInputRef = useRef<HTMLInputElement>(null);
   const confirmInputRef = useRef<HTMLInputElement>(null);
@@ -76,64 +81,14 @@ function App() {
     pinInputRef, confirmInputRef, mainInputRef, gatekeeperInputRef,
   });
 
-  // Route to the correct initial view after config is loaded
-  useEffect(() => {
-    if (view !== null) return; // already routed
-    const route = async () => {
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const currentWin = getCurrentWindow();
-        if (currentWin.label === "gatekeeper") {
-          setView("gatekeeper");
-          return;
-        }
-        const isSetup = await checkSetup();
-        if (!isSetup) {
-          setView("onboarding");
-          return;
-        }
-        const isUnlocked = await getIsUnlocked();
-        if (isUnlocked) {
-          const persistedView = localStorage.getItem("applock_view") as View;
-          if (persistedView && ["dashboard", "setup", "verify"].includes(persistedView)) {
-            setView(persistedView);
-          } else {
-            setView("dashboard");
-          }
-        } else {
-          setView("unlock");
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    route();
-  }, []);
-
   // Persist view/tab navigation
   useEffect(() => {
     if (view && view !== "onboarding" && view !== "unlock" && view !== "gatekeeper") {
-      localStorage.setItem("applock_view", view);
+      localStorage.setItem(STORAGE_KEYS.VIEW, view);
     }
-    if (activeTab) localStorage.setItem("applock_tab", activeTab);
-    if (settingsTab) localStorage.setItem("applock_settings_tab", settingsTab);
+    if (activeTab) localStorage.setItem(STORAGE_KEYS.TAB, activeTab);
+    if (settingsTab) localStorage.setItem(STORAGE_KEYS.SETTINGS_TAB, settingsTab);
   }, [view, activeTab, settingsTab]);
-
-  // Apply animation intensity setting
-  useEffect(() => {
-    if (config.animations_intensity === "low") {
-      document.documentElement.setAttribute("data-reduced-motion", "true");
-    } else {
-      document.documentElement.removeAttribute("data-reduced-motion");
-    }
-  }, [config.animations_intensity]);
-
-  const updateConfig = async (updates: Partial<AppConfig>) => {
-    const newConfig = { ...config, ...updates };
-    setConfig(newConfig);
-    if (updates.auth_mode) setAuthMode(updates.auth_mode);
-    try { await updateSettings(newConfig); } catch (err) { setError(String(err)); }
-  };
 
   if (view === null) return null;
 
@@ -160,7 +115,12 @@ function App() {
             allAppsCount={allApps.length} pinInputRef={pinInputRef} confirmInputRef={confirmInputRef}
             setAuthMode={setAuthMode} setPassword={setPassword} setConfirmPassword={setConfirmPassword}
             setError={setError} setView={setView}
-            handleSetup={(e) => handleSetup(e, authMode, isUpdatingFromSettings, setView, setIsUpdatingFromSettings, setShowUpdateSuccess)}
+            handleSetup={(e) => handleSetup(e, authMode, {
+              isUpdating: isUpdatingFromSettings,
+              setView,
+              setIsUpdatingFromSettings,
+              setShowUpdateSuccess,
+            })}
           />
         )}
 
@@ -181,9 +141,9 @@ function App() {
             search={search} setSearch={setSearch} placeholder={placeholder}
             handleLockSession={async () => { await lockSession(); setView("unlock"); }}
             isScanning={isScanning} allApps={allApps} lockedApps={lockedApps}
-            toggleApp={(app, fromTab) => toggleApp(app, lockedApps, setLockedApps, triggerToast, setError, fromTab)}
+            toggleApp={toggleApp}
             refreshApps={fetchDetailedApps}
-            bulkUnlock={(apps) => bulkUnlock(apps)}
+            bulkUnlock={bulkUnlock}
             settingsTab={settingsTab} setSettingsTab={setSettingsTab}
             authMode={authMode} setAuthMode={setAuthMode}
             setView={(v: string) => {
@@ -210,9 +170,9 @@ function App() {
       <ConfirmModals
         appName={APP_NAME}
         appToRemove={appToRemove} setAppToRemove={setAppToRemove}
-        onConfirmRemoval={() => confirmRemoval(lockedApps, setLockedApps, triggerToast, setError)}
+        onConfirmRemoval={confirmRemoval}
         appsToBulkUnlock={appsToBulkUnlock} setAppsToBulkUnlock={setAppsToBulkUnlock}
-        onConfirmBulkUnlock={() => confirmBulkUnlock(lockedApps, setLockedApps, triggerToast, setError)}
+        onConfirmBulkUnlock={confirmBulkUnlock}
         showResetConfirm={showResetConfirm} setShowResetConfirm={setShowResetConfirm}
         showResetFinal={showResetFinal} setShowResetFinal={setShowResetFinal}
         onReset={async () => { await resetApp(); window.location.reload(); }}
