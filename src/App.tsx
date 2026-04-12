@@ -71,8 +71,7 @@ function App() {
     locked_apps: [],
     auth_mode: "PIN",
     attempt_limit: 5,
-    lockout_duration: 60,
-    theme: "dark"
+    lockout_duration: 60
   });
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Lock, Search, ShieldCheck, ArrowRight } from "lucide-react";
+import { Lock, Search, ArrowRight } from "lucide-react";
 import styles from "../styles/App.module.css";
 import logo from "../assets/logo.png";
 
