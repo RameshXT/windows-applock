@@ -17,8 +17,6 @@ pub fn extract_icon_to_file(exe_path: &str, app_id: &str, app_handle: &AppHandle
     }
 
     let save_path = icon_dir.join(format!("{}.png", app_id));
-    
-    // If it already exists, return early
     if save_path.exists() {
         return Ok(save_path.to_string_lossy().to_string());
     }
@@ -73,8 +71,6 @@ unsafe fn hicon_to_png(hicon: HICON, save_path: &Path) -> Result<(), String> {
     if lines == 0 {
         return Err("GetDIBits failed".to_string());
     }
-
-    // Convert BGRA to RGBA
     for pixel in buffer.chunks_exact_mut(4) {
         pixel.swap(0, 2);
     }

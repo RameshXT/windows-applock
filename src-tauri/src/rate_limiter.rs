@@ -2,8 +2,6 @@ use chrono::{DateTime, Utc, Duration};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Instant;
-
-/// Context of the verification request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VerifyContext {
     #[serde(rename = "app_lock")]
@@ -27,8 +25,6 @@ impl VerifyContext {
         }
     }
 }
-
-/// State for the sliding window rate limiter and hard lockouts.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RateLimitState {
     pub attempt_timestamps: Vec<DateTime<Utc>>,
@@ -47,8 +43,6 @@ impl Default for RateLimitState {
         }
     }
 }
-
-/// State for debouncing rapid verification calls.
 pub struct DebounceState {
     pub last_calls: HashMap<VerifyContext, Instant>,
 }
@@ -60,16 +54,11 @@ impl Default for DebounceState {
         }
     }
 }
-
-/// Decision from the rate limiter.
 pub enum RateLimitDecision {
     Allowed,
     RateLimited,
     LockedOut(u64), // seconds remaining
 }
-
-/// Check if a call should be debounced based on the context.
-/// Minimum 500ms for AppLock, 1000ms for DashboardLock.
 pub fn apply_debounce(context: VerifyContext, state: &mut DebounceState) -> bool {
     let now = Instant::now();
     let min_interval = match context {
@@ -87,50 +76,32 @@ pub fn apply_debounce(context: VerifyContext, state: &mut DebounceState) -> bool
     state.last_calls.insert(context, now);
     false
 }
-
-/// Check rate limit and lockout status.
-/// Implements a sliding window of max 5 attempts per 30 seconds.
 pub fn check_rate_limit(state: &mut RateLimitState) -> RateLimitDecision {
     let now = Utc::now();
-
-    // 1. Check if currently locked out
     if state.is_locked_out {
         if let Some(until) = state.lockout_until {
             if now < until {
                 let remaining = (until - now).num_seconds().max(0) as u64;
                 return RateLimitDecision::LockedOut(remaining);
             } else {
-                // Lockout expired
                 state.is_locked_out = false;
                 state.lockout_until = None;
-                // Note: consecutive_failures is NOT reset here, only on success.
             }
         } else {
-            // Hard lock (lockout_until is None)
             return RateLimitDecision::LockedOut(0);
         }
     }
-
-    // 2. Sliding window check: 5 attempts per 30 seconds
     let window_start = now - Duration::seconds(30);
     state.attempt_timestamps.retain(|&t| t > window_start);
 
     if state.attempt_timestamps.len() >= 5 {
         return RateLimitDecision::RateLimited;
     }
-
-    // Note: We don't push the timestamp here yet, 
-    // we do it in record_attempt_timestamp to ensure ONLY allowed calls count.
     RateLimitDecision::Allowed
 }
-
-/// Records the timestamp of a permitted verification attempt.
 pub fn record_attempt_timestamp(state: &mut RateLimitState) {
     state.attempt_timestamps.push(Utc::now());
 }
-
-/// Update lockout state based on verification result.
-/// Implements tiered cooldown durations.
 pub fn update_lockout_state(success: bool, state: &mut RateLimitState) {
     let now = Utc::now();
 
@@ -140,12 +111,6 @@ pub fn update_lockout_state(success: bool, state: &mut RateLimitState) {
         state.lockout_until = None;
     } else {
         state.consecutive_failures += 1;
-
-        // Tiered lockout logic:
-        // 3 failures  -> 30s
-        // 5 failures  -> 5m
-        // 10 failures -> 30m
-        // 15 failures -> hard lock
         let cooldown = match state.consecutive_failures {
             0..=2 => None,
             3..=4 => Some(Duration::seconds(30)),
@@ -155,8 +120,6 @@ pub fn update_lockout_state(success: bool, state: &mut RateLimitState) {
         };
 
         if let Some(duration) = cooldown {
-            // Only update if we aren't already in a stricter lockout
-            // (though consecutive_failures increment should handle this naturally)
             state.is_locked_out = true;
             state.lockout_until = Some(now + duration);
         } else if state.consecutive_failures >= 15 {

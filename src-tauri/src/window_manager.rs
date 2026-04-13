@@ -73,8 +73,6 @@ impl From<windows::core::Error> for WindowError {
         WindowError::Win32Error(err.code().0 as u32)
     }
 }
-
-/// Freeze target app window immediately on detection.
 #[tauri::command]
 pub fn freeze_target_window(
     state: State<'_, Arc<AppState>>,
@@ -83,24 +81,16 @@ pub fn freeze_target_window(
 ) -> Result<(), String> {
     freeze_window_logic(HWND(hwnd as _), &state, &app_handle).map_err(|e| format!("{:?}", e))
 }
-
-/// INTERNAL: Core logic for freezing and snapshotting a window.
 pub fn freeze_window_logic(hwnd: HWND, state: &AppState, app_handle: &AppHandle) -> Result<(), WindowError> {
     unsafe {
         if hwnd.0.is_null() {
             return Err(WindowError::InvalidHwnd);
         }
-        
-        // Snapshot first
         if let Ok(snapshot) = snapshot_window_state(hwnd) {
             let mut snapshots = state.window_snapshots.write().map_err(|_| WindowError::SnapshotFailed)?;
             snapshots.insert(hwnd.0 as isize, snapshot);
         }
-
-        // Hide from Alt+Tab
         let _ = hide_from_alt_tab(hwnd);
-        
-        // Minimize and disable interaction
         let _ = ShowWindow(hwnd, SW_MINIMIZE);
         let _ = EnableWindow(hwnd, false);
         
@@ -108,8 +98,6 @@ pub fn freeze_window_logic(hwnd: HWND, state: &AppState, app_handle: &AppHandle)
         Ok(())
     }
 }
-
-/// Bring lock overlay to foreground (always on top).
 #[tauri::command]
 pub fn assert_overlay_topmost(app: AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
@@ -130,8 +118,6 @@ pub fn assert_overlay_topmost(app: AppHandle) -> Result<(), String> {
         Err("Overlay window not found".into())
     }
 }
-
-/// Handle multi-monitor setups — overlay on correct screen.
 #[tauri::command]
 pub fn get_target_monitor_bounds(hwnd: isize) -> Result<MonitorBounds, String> {
     let hwnd = HWND(hwnd as _);
@@ -154,8 +140,6 @@ pub fn get_target_monitor_bounds(hwnd: isize) -> Result<MonitorBounds, String> {
         }
     }
 }
-
-/// Restore app to original state after unlock.
 #[tauri::command]
 pub async fn restore_locked_window(
     state: State<'_, Arc<AppState>>,
@@ -181,8 +165,6 @@ pub async fn restore_locked_window(
         Err("Snapshot not found for window".into())
     }
 }
-
-/// INTERNAL: Hide from Alt+Tab
 pub fn hide_from_alt_tab(hwnd: HWND) -> Result<(), WindowError> {
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
@@ -194,8 +176,6 @@ pub fn hide_from_alt_tab(hwnd: HWND) -> Result<(), WindowError> {
         Ok(())
     }
 }
-
-/// INTERNAL: Restore to Alt+Tab
 pub fn restore_alt_tab(hwnd: HWND) -> Result<(), WindowError> {
     unsafe {
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
@@ -207,8 +187,6 @@ pub fn restore_alt_tab(hwnd: HWND) -> Result<(), WindowError> {
         Ok(())
     }
 }
-
-/// INTERNAL: Detect fullscreen
 pub fn is_fullscreen(hwnd: HWND) -> Result<bool, WindowError> {
     unsafe {
         let mut rect = RECT::default();
@@ -224,8 +202,6 @@ pub fn is_fullscreen(hwnd: HWND) -> Result<bool, WindowError> {
         Ok(is_fs)
     }
 }
-
-/// INTERNAL: Snapshot window state
 pub fn snapshot_window_state(hwnd: HWND) -> Result<WindowSnapshot, WindowError> {
     unsafe {
         let mut placement = WINDOWPLACEMENT {
@@ -255,8 +231,6 @@ pub fn snapshot_window_state(hwnd: HWND) -> Result<WindowSnapshot, WindowError> 
         })
     }
 }
-
-/// INTERNAL: Restore window state
 pub fn restore_window_state(hwnd: HWND, snapshot: &WindowSnapshot) -> Result<(), WindowError> {
     unsafe {
         let _ = EnableWindow(hwnd, true);
@@ -281,8 +255,6 @@ pub fn restore_window_state(hwnd: HWND, snapshot: &WindowSnapshot) -> Result<(),
         Ok(())
     }
 }
-
-/// INTERNAL: Protect process
 pub fn protect_process() -> Result<(), WindowError> {
     unsafe {
         let mut h_token = HANDLE::default();
@@ -302,8 +274,6 @@ pub fn protect_process() -> Result<(), WindowError> {
         Ok(())
     }
 }
-
-/// INTERNAL: Get process windows
 pub fn get_process_windows(pid: u32) -> Vec<HWND> {
     let mut windows: Vec<HWND> = Vec::new();
     unsafe {
@@ -325,16 +295,12 @@ extern "system" fn enum_window_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
     windows.push(hwnd);
     BOOL::from(true)
 }
-
-/// INTERNAL: Legacy freeze helper
 pub fn hide_window(hwnd: HWND) -> Result<(), WindowError> {
     unsafe {
         let _ = ShowWindow(hwnd, SW_MINIMIZE);
         Ok(())
     }
 }
-
-/// INTERNAL: Legacy suspend helper
 pub fn suspend_process(_pid: u32) -> Result<(), WindowError> {
     Ok(())
 }

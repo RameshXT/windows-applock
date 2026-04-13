@@ -2,13 +2,9 @@ use std::sync::Arc;
 use crate::models::{AppConfig, AppState};
 use crate::services::security;
 use crate::utils::config::save_config;
-
-/// Core verification logic shared by verify_password and verify_gatekeeper.
-/// Handles lockout tracking, recovery key fallback, and Argon2 verification.
 pub fn verify_impl(password: &str, config: &mut AppConfig, state: &Arc<AppState>) -> Result<bool, String> {
     println!("[Auth] Attempting verification for password length: {}", password.len());
 
-    // Lockout check
     if let Some(until) = config.lockout_until {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -27,7 +23,6 @@ pub fn verify_impl(password: &str, config: &mut AppConfig, state: &Arc<AppState>
 
     let mut is_valid = security::verify_password(password, &config.hashed_password);
 
-    // Recovery key fallback
     if !is_valid {
         if let Some(ref rkey) = config.recovery_key {
             if password.trim().to_uppercase() == rkey.to_uppercase() {

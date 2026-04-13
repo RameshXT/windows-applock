@@ -37,8 +37,6 @@ pub struct CredentialLog {
 const CONFIG_VERSION: u32 = 1;
 const CONFIG_FILE: &str = "credentials.enc";
 const LOG_FILE: &str = "logs.enc";
-
-/// Gets the machine-unique key for encryption
 fn get_encryption_key() -> Result<[u8; 32], String> {
     let id = machine_uid::get().map_err(|e| format!("Failed to get machine UID: {}", e))?;
     let mut key = [0u8; 32];
@@ -52,8 +50,6 @@ fn get_encryption_key() -> Result<[u8; 32], String> {
     }
     Ok(key)
 }
-
-/// Encrypts data using AES-256-GCM
 fn encrypt_data(data: &[u8]) -> Result<Vec<u8>, String> {
     let key_bytes = get_encryption_key()?;
     let key = Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| e.to_string())?;
@@ -62,8 +58,6 @@ fn encrypt_data(data: &[u8]) -> Result<Vec<u8>, String> {
     let ciphertext = key.encrypt(nonce, data).map_err(|e| e.to_string())?;
     Ok(ciphertext)
 }
-
-/// Decrypts data using AES-256-GCM
 fn decrypt_data(data: &[u8]) -> Result<Vec<u8>, String> {
     let key_bytes = get_encryption_key()?;
     let key = Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| e.to_string())?;
@@ -78,8 +72,6 @@ fn get_app_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
         .path().app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))
 }
-
-/// Validates alphanumeric strength: Min 8 chars, 1 uppercase
 fn validate_alphanumeric(password: &str) -> Result<(), String> {
     if password.len() < 8 {
         return Err("Password must be at least 8 characters long".to_string());
@@ -89,8 +81,6 @@ fn validate_alphanumeric(password: &str) -> Result<(), String> {
     }
     Ok(())
 }
-
-/// Validates PIN (rejects common and sequential)
 fn validate_pin(pin: &str, length: usize) -> Result<(), String> {
     if pin.len() != length {
         return Err(format!("PIN must be exactly {} digits", length));
@@ -98,14 +88,10 @@ fn validate_pin(pin: &str, length: usize) -> Result<(), String> {
     if !pin.chars().all(|c| c.is_digit(10)) {
         return Err("PIN must contain only digits".to_string());
     }
-
-    // Common PINs (0000, 1111, 1234 etc are common)
     let common_pins = vec!["0000", "1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999", "1234"];
     if length == 4 && common_pins.contains(&pin) {
         return Err("Common PINs are not allowed".to_string());
     }
-
-    // Sequential PINs
     let digits: Vec<i32> = pin.chars().map(|c| c.to_digit(10).unwrap() as i32).collect();
     let mut incremental = true;
     let mut decremental = true;
@@ -121,8 +107,6 @@ fn validate_pin(pin: &str, length: usize) -> Result<(), String> {
 
     Ok(())
 }
-
-/// Logs a credential action with encryption
 fn log_action(app_handle: &AppHandle, action: &str, cred_type: &str) -> Result<(), String> {
     let app_dir = get_app_dir(app_handle)?;
     let log_path = app_dir.join(LOG_FILE);
@@ -147,8 +131,6 @@ fn log_action(app_handle: &AppHandle, action: &str, cred_type: &str) -> Result<(
 
     Ok(())
 }
-
-/// Sets a new credential after validation
 pub fn set_credential_internal(app_handle: &AppHandle, pin_or_password: String, cred_type: String) -> Result<(), String> {
     match cred_type.as_str() {
         "pin_4" => validate_pin(&pin_or_password, 4)?,
@@ -184,8 +166,6 @@ pub fn set_credential_internal(app_handle: &AppHandle, pin_or_password: String, 
 
     Ok(())
 }
-
-/// Verifies input against stored Argon2 hash
 pub fn verify_credential_internal(app_handle: &AppHandle, input: String) -> Result<bool, String> {
     let app_dir = get_app_dir(app_handle)?;
     let config_path = app_dir.join(CONFIG_FILE);
@@ -225,8 +205,6 @@ pub fn verify_credential_internal(app_handle: &AppHandle, input: String) -> Resu
 
     Ok(is_valid)
 }
-
-/// Updates credential - verifies old credential first
 pub fn update_credential_internal(app_handle: &AppHandle, old_input: String, new_input: String, cred_type: String) -> Result<(), String> {
     let is_valid = verify_credential_internal(app_handle, old_input)?;
     if !is_valid {
@@ -238,8 +216,6 @@ pub fn update_credential_internal(app_handle: &AppHandle, old_input: String, new
     
     Ok(())
 }
-
-/// Checks rehash status during app boot
 pub fn initialize_rehash_status(app_handle: &AppHandle) {
     if let Ok(app_dir) = get_app_dir(app_handle) {
         let config_path = app_dir.join(CONFIG_FILE);

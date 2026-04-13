@@ -1,8 +1,4 @@
 use windows::core::HSTRING;
-
-// IPackageDebugSettings is complex to define manually. 
-// For this implementation, we will use the baseline Thread Suspension 
-// as indicated in the requirements fallback (Feature 39).
 pub struct IPackageDebugSettings; 
 
 impl IPackageDebugSettings {
@@ -47,7 +43,5 @@ impl UwpHandler {
 }
 
 pub fn get_uwp_package_family_name(_pid: u32) -> Option<String> {
-    // This is complex to implement purely in Rust without heavy dependencies
-    // For now, we can try to get it from the process name or executable path if it's already stored in LockedAppEntry
     None
 }

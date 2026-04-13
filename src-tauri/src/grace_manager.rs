@@ -23,9 +23,6 @@ pub enum GraceError {
     #[error("Unknown error: {0}")]
     Unknown(String),
 }
-
-/// In-memory grace session for a specific application.
-/// This is NEVER written to disk and uses Instant for timing.
 pub struct GraceSession {
     pub app_id: String,
     pub app_name: String,
@@ -35,8 +32,6 @@ pub struct GraceSession {
     pub is_active: bool,
     pub expiry_task: Option<tokio::task::JoinHandle<()>>,
 }
-
-/// Central store for all active grace sessions.
 pub struct GraceSessionStore {
     pub sessions: HashMap<String, GraceSession>,
     pub max_security_mode: bool,
@@ -50,8 +45,6 @@ impl GraceSessionStore {
         }
     }
 }
-
-/// Persistent (non-sensitive) settings for grace period behavior.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct GraceSettings {
     pub enabled: bool,
@@ -70,8 +63,6 @@ impl Default for GraceSettings {
         }
     }
 }
-
-/// Result of a grace period check.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "data")]
 pub enum GraceCheckResult {
@@ -80,8 +71,6 @@ pub enum GraceCheckResult {
     NotFound,
     Disabled,
 }
-
-/// Serializable version of a grace session for frontend display.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GraceSessionView {
     pub app_id: String,
@@ -90,8 +79,6 @@ pub struct GraceSessionView {
     pub grace_duration_secs: u64,
     pub is_active: bool,
 }
-
-/// System events that trigger grace session resets.
 #[derive(Debug, Clone)]
 pub enum SystemEvent {
     ScreenLocked,
@@ -102,9 +89,6 @@ pub enum SystemEvent {
     ManualReLock { app_id: String },
     ManualReLockAll,
 }
-
-/// Start a new grace session for an app.
-/// Triggered after successful credential verification.
 pub async fn start_grace_session(
     app_id: &str,
     app_name: &str,
@@ -122,8 +106,6 @@ pub async fn start_grace_session(
 
     let store_arc = app_handle.state::<Arc<RwLock<GraceSessionStore>>>();
     let mut store = store_arc.write().await;
-
-    // Cancel existing task if any
     if let Some(existing) = store.sessions.get_mut(app_id) {
         if let Some(task) = existing.expiry_task.take() {
             task.abort();
@@ -136,8 +118,6 @@ pub async fn start_grace_session(
     
     let expiry_task = tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(duration_secs)).await;
-        
-        // Mark session inactive and emit event
         let store_arc = app_handle_clone.state::<Arc<RwLock<GraceSessionStore>>>();
         let mut store = store_arc.write().await;
         if let Some(session) = store.sessions.get_mut(&app_id_clone) {
@@ -161,8 +141,6 @@ pub async fn start_grace_session(
     };
 
     store.sessions.insert(app_id.to_string(), session);
-
-    // Emit event
     let _ = app_handle.emit("grace_started", serde_json::json!({
         "app_id": app_id,
         "app_name": app_name,
@@ -172,8 +150,6 @@ pub async fn start_grace_session(
 
     Ok(())
 }
-
-/// Check if a grace session is active for an app.
 pub async fn check_grace_session_internal(
     app_id: &str,
     store_arc: &Arc<RwLock<GraceSessionStore>>,
@@ -200,8 +176,6 @@ pub async fn check_grace_session_internal(
         GraceCheckResult::NotFound
     }
 }
-
-/// Reset all grace sessions for a specific reason.
 pub async fn reset_all_grace_sessions(
     reason: SystemEvent,
     store_arc: &Arc<RwLock<GraceSessionStore>>,
@@ -209,8 +183,6 @@ pub async fn reset_all_grace_sessions(
 ) -> usize {
     let mut store = store_arc.write().await;
     let count = store.sessions.len();
-    
-    // Abort all timers
     for session in store.sessions.values_mut() {
         if let Some(task) = session.expiry_task.take() {
             task.abort();
@@ -235,8 +207,6 @@ pub async fn reset_all_grace_sessions(
 
     count
 }
-
-/// Get grace duration for an app based on settings and overrides.
 pub fn get_grace_duration_for_app(app_id: &str, settings: &GraceSettings) -> u64 {
     if let Some(override_secs) = settings.per_app_overrides.get(app_id) {
         *override_secs
@@ -244,8 +214,6 @@ pub fn get_grace_duration_for_app(app_id: &str, settings: &GraceSettings) -> u64
         settings.default_duration_secs
     }
 }
-
-/// Internal helper to load grace settings.
 pub async fn get_grace_settings_internal(app_handle: &AppHandle) -> Result<GraceSettings, GraceError> {
     let config_dir = app_handle.path().app_config_dir().map_err(|_| GraceError::SettingsLoadFailed)?;
     let settings_path = config_dir.join("grace_settings.json");
@@ -257,8 +225,6 @@ pub async fn get_grace_settings_internal(app_handle: &AppHandle) -> Result<Grace
     let content = std::fs::read_to_string(settings_path).map_err(|_| GraceError::SettingsLoadFailed)?;
     serde_json::from_str(&content).map_err(|_| GraceError::SettingsLoadFailed)
 }
-
-/// Internal helper to save grace settings.
 pub async fn save_grace_settings_internal(
     app_handle: &AppHandle,
     settings: &GraceSettings,
@@ -269,8 +235,6 @@ pub async fn save_grace_settings_internal(
     let content = serde_json::to_string_pretty(settings).map_err(|_| GraceError::SettingsSaveFailed)?;
     std::fs::write(settings_path, content).map_err(|_| GraceError::SettingsSaveFailed)
 }
-
-// --- Tauri Commands ---
 
 #[tauri::command]
 pub async fn check_grace_session(
@@ -324,9 +288,6 @@ pub async fn re_lock_app(
             "reason": "manual"
         }));
         
-        // Logging should happen here as per requirements "Log re-lock event to logs.enc"
-        // Since logs.enc logic is in verify_logger, I might need to bridge it.
-        
         Ok(())
     } else {
         Err("Session not found".to_string())
@@ -356,8 +317,6 @@ pub async fn update_grace_settings(
     store: tauri::State<'_, Arc<RwLock<GraceSessionStore>>>,
 ) -> Result<(), String> {
     save_grace_settings_internal(&app_handle, &settings).await.map_err(|e| e.to_string())?;
-    
-    // If max security was toggled on, clear sessions
     let mut store = store.write().await;
     if settings.max_security_mode && !store.max_security_mode {
         store.max_security_mode = true;

@@ -16,17 +16,11 @@ pub struct InstalledApp {
 pub fn get_apps() -> Vec<InstalledApp> {
     let mut apps_map: HashMap<String, InstalledApp> = HashMap::new();
     let mut seen_paths = HashSet::new();
-
-    // 1. Scan Registry (Native - Very fast & reliable for uninstalls)
     scan_registry(&mut apps_map, &mut seen_paths);
-    
-    // 2. Scan PowerShell (Start Menu & UWP) - Complements registry with Store apps & correct icons
     let ps_apps = get_apps_powershell();
     for app in ps_apps {
         if let Some(ref path) = app.path {
             let path_lower = path.to_lowercase();
-            // If we already have this executable, we prefer the name/metadata from StartApps
-            // unless the registry name is already solid.
             if !seen_paths.contains(&path_lower) {
                 seen_paths.insert(path_lower);
                 apps_map.insert(app.name.clone(), app);
@@ -35,8 +29,6 @@ pub fn get_apps() -> Vec<InstalledApp> {
     }
 
     let mut final_apps: Vec<InstalledApp> = apps_map.into_values().collect();
-    
-    // Sort alphabetically by display name
     final_apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     final_apps
 }
@@ -60,13 +52,10 @@ fn scan_registry(apps: &mut HashMap<String, InstalledApp>, seen_paths: &mut Hash
         if let Ok(key) = root.open_subkey(path) {
             for name in key.enum_keys().filter_map(|x: Result<String, _>| x.ok()) {
                 if let Ok(sub_key) = key.open_subkey(&name) {
-                    // Inclusion Rules
                     let display_name: String = sub_key.get_value("DisplayName").unwrap_or_default();
                     if display_name.is_empty() { continue; }
 
                     let name_lower = display_name.to_lowercase();
-                    
-                    // Exclusion Rules
                     if exclude_keywords.iter().any(|&k| name_lower.contains(k)) { continue; }
                     
                     let system_component: u32 = sub_key.get_value("SystemComponent").unwrap_or(0);
@@ -80,23 +69,17 @@ fn scan_registry(apps: &mut HashMap<String, InstalledApp>, seen_paths: &mut Hash
                     let install_location: String = sub_key.get_value("InstallLocation").unwrap_or_default();
 
                     let mut exec_path = None;
-
-                    // 1. Try to extract from DisplayIcon if it points to an .exe
                     if !display_icon.is_empty() {
                         let icon_path = display_icon.split(',').next().unwrap_or(&display_icon).trim_matches('"');
                         if icon_path.to_lowercase().ends_with(".exe") && Path::new(icon_path).exists() {
                             exec_path = Some(icon_path.to_string());
                         }
                     }
-
-                    // 2. Try to find main exe in InstallLocation
                     if exec_path.is_none() && !install_location.is_empty() && Path::new(&install_location).exists() {
                         if let Ok(read_dir) = std::fs::read_dir(&install_location) {
                             let mut exes: Vec<_> = read_dir.filter_map(|e| e.ok())
                                 .filter(|e| e.path().extension().map_or(false, |ext| ext == "exe"))
                                 .collect();
-                            
-                            // Heuristic: Prefer the exe that matches the display name, or the largest one
                             exes.sort_by_key(|e| std::fs::metadata(e.path()).map(|m| m.len()).unwrap_or(0));
                             if let Some(entry) = exes.last() {
                                 exec_path = Some(entry.path().to_string_lossy().to_string());
@@ -106,7 +89,6 @@ fn scan_registry(apps: &mut HashMap<String, InstalledApp>, seen_paths: &mut Hash
 
                     if let Some(path) = exec_path {
                         let path_lower = path.to_lowercase();
-                        // Ignore uninstallers or setup tools
                         if path_lower.contains("uninst") || path_lower.contains("setup") || path_lower.contains("helper") {
                             continue;
                         }

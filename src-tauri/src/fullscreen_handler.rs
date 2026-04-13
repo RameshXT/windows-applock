@@ -6,11 +6,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use windows::Win32::Graphics::Gdi::{
     MonitorFromWindow, GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO,
 };
-
-/// Detect if a window is in fullscreen mode.
 pub fn detect_fullscreen(hwnd: HWND) -> bool {
     unsafe {
-        // 1. Check window bounds against monitor bounds
         let mut window_rect = RECT::default();
         if GetWindowRect(hwnd, &mut window_rect).is_err() {
             return false;
@@ -33,18 +30,12 @@ pub fn detect_fullscreen(hwnd: HWND) -> bool {
                 return true;
             }
         }
-
-        // 2. Check window styles: WS_POPUP without WS_CAPTION = borderless fullscreen
         let style = GetWindowLongW(hwnd, GWL_STYLE) as u32;
         if (style & WS_POPUP.0 != 0) && (style & WS_CAPTION.0 == 0) {
             return true;
         }
-
-        // 3. Check WS_EX_TOPMOST extended style
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
         if (ex_style & WS_EX_TOPMOST.0 as usize) != 0 {
-            // This isn't definitive but often true for fullscreen
-            // Let's rely more on size and basic style
         }
     }
     false

@@ -57,8 +57,6 @@ pub enum ScanError {
 }
 
 const CACHE_FILE: &str = "scan_cache.json";
-
-/// Main entry point for starting a scan
 pub fn start_scan_internal(app_handle: AppHandle) -> Result<String, String> {
     let scan_id = Uuid::new_v4().to_string();
     let app_handle_clone = app_handle.clone();
@@ -73,8 +71,6 @@ pub fn start_scan_internal(app_handle: AppHandle) -> Result<String, String> {
 fn run_full_scan(app_handle: AppHandle) -> Result<(), String> {
     let start_time = Instant::now();
     app_handle.emit("scan_progress", serde_json::json!({ "percent": 5, "current_source": "Registry" })).unwrap();
-
-    // 1. Parallel Source Scanning
     let sources = rayon::join(
         || rayon::join(scan_registry_hklm, scan_registry_hkcu),
         || rayon::join(
@@ -82,8 +78,6 @@ fn run_full_scan(app_handle: AppHandle) -> Result<(), String> {
             || rayon::join(scan_appdata_local, scan_start_menu)
         )
     );
-
-    // Flatten results
     let mut all_results = Vec::new();
     let ((hklm, hkcu), ((pf, pfx), (al, sm))) = sources;
     
@@ -95,12 +89,8 @@ fn run_full_scan(app_handle: AppHandle) -> Result<(), String> {
     all_results.extend(sm.unwrap_or_default());
 
     app_handle.emit("scan_progress", serde_json::json!({ "percent": 70, "current_source": "Deduplicating" })).unwrap();
-
-    // 2. Deduplicate and Filter
     let mut apps = deduplicate_apps(all_results);
     apps.retain(|app| !is_system_process(app));
-
-    // 3. Extract Icons (in parallel)
     app_handle.emit("scan_progress", serde_json::json!({ "percent": 85, "current_source": "Extracting Icons" })).unwrap();
     
     let handle_ref = &app_handle;
@@ -109,16 +99,12 @@ fn run_full_scan(app_handle: AppHandle) -> Result<(), String> {
             app.icon_path = ip;
         }
     });
-
-    // 4. Update Cache
     let cache = ScanCache {
         scan_timestamp: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
         app_count: apps.len(),
         entries: apps.clone(),
     };
     let _ = save_cache(&app_handle, &cache);
-
-    // 5. Done
     app_handle.emit("scan_complete", serde_json::json!({
         "app_count": apps.len(),
         "scan_duration_ms": start_time.elapsed().as_millis() as u64
@@ -140,7 +126,6 @@ fn scan_registry(root: RegKey, path: &str, source: ScanSource) -> Result<Vec<Sca
             let mut exe_path = clean_icon_path(&icon_str);
 
             if exe_path.is_empty() && !install_loc.is_empty() {
-                // Try to find first exe in install loc
                 if let Some(found) = find_exe_in_dir(&PathBuf::from(&install_loc), 1) {
                     exe_path = found.to_string_lossy().to_string();
                 }
@@ -184,7 +169,6 @@ fn scan_dir_for_exes(base_path: &str, source: ScanSource) -> Result<Vec<ScannedA
     for entry in entries.flatten() {
         let p = entry.path();
         if p.is_dir() {
-            // Walk 2 levels
             if let Ok(sub) = fs::read_dir(&p) {
                 for sub_entry in sub.flatten() {
                     let sp = sub_entry.path();
@@ -214,8 +198,6 @@ fn scan_appdata_local() -> Result<Vec<ScannedApp>, ScanError> {
 }
 
 fn scan_start_menu() -> Result<Vec<ScannedApp>, ScanError> {
-    // Basic walk of start menu - usually requires LNK parsing
-    // For brevity, we walk and pick .exes or .lnks
     let mut apps = Vec::new();
     if let Ok(pd) = env::var("ProgramData") {
         let path = Path::new(&pd).join("Microsoft\\Windows\\Start Menu\\Programs");
@@ -243,7 +225,6 @@ fn deduplicate_apps(all: Vec<ScannedApp>) -> Vec<ScannedApp> {
         let norm_path = app.executable_path.to_lowercase().replace("/", "\\");
         
         if let Some(existing) = map.get(&norm_path) {
-            // Prefer Registry sources
             match (&app.source, &existing.source) {
                 (ScanSource::RegistryHKLM | ScanSource::RegistryHKCU, _) => {
                     map.insert(norm_path, app);
@@ -269,8 +250,6 @@ fn is_system_process(app: &ScannedApp) -> bool {
     
     system_exes.iter().any(|sys| p.ends_with(sys))
 }
-
-// Helpers
 fn clean_icon_path(path: &str) -> String {
     let p = path.trim_matches('\"').split(',').next().unwrap_or("");
     if p.to_lowercase().ends_with(".exe") { p.to_string() } else { String::new() }

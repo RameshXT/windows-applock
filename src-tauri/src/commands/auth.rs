@@ -3,8 +3,6 @@ use tauri::{AppHandle, Manager, State};
 use crate::models::{AppState, AuthMode};
 use crate::services::{security, auth};
 use crate::utils::config::save_config;
-
-/// Checks whether initial setup has been completed (onboarding done and password exists).
 #[tauri::command]
 pub async fn check_setup(state: State<'_, Arc<AppState>>) -> Result<bool, String> {
     let config = state.config.lock().unwrap();
@@ -13,8 +11,6 @@ pub async fn check_setup(state: State<'_, Arc<AppState>>) -> Result<bool, String
     
     Ok(is_onboarded && has_password)
 }
-
-/// Creates or updates the master password, recording the change timestamp.
 #[tauri::command]
 pub async fn setup_password(
     password: String,
@@ -32,8 +28,6 @@ pub async fn setup_password(
     );
     save_config(&config, &state.config_path)
 }
-
-/// Verifies the master password for the main dashboard unlock flow.
 #[tauri::command]
 pub async fn verify_password(
     password: String,
@@ -42,8 +36,6 @@ pub async fn verify_password(
     let mut config = state.config.lock().unwrap();
     auth::verify_impl(&password, &mut config, &state)
 }
-
-/// Verifies the password in the gatekeeper popup, relaunches the app on success.
 #[tauri::command]
 pub async fn verify_gatekeeper(
     password: String,
@@ -87,16 +79,12 @@ pub async fn verify_gatekeeper(
 
     Ok(is_valid)
 }
-
-/// Locks the session, requiring re-authentication.
 #[tauri::command]
 pub async fn lock_session(state: State<'_, Arc<AppState>>) -> Result<(), String> {
     let mut unlocked = state.is_unlocked.lock().unwrap();
     *unlocked = false;
     Ok(())
 }
-
-/// Returns whether the session is currently unlocked.
 #[tauri::command]
 pub async fn get_is_unlocked(state: State<'_, Arc<AppState>>) -> Result<bool, String> {
     let unlocked = state.is_unlocked.lock().unwrap();

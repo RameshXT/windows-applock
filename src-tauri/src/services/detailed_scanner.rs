@@ -6,8 +6,6 @@ use std::path::Path;
 use base64::{Engine as _, engine::general_purpose};
 use std::io::Cursor;
 use image::ImageFormat;
-
-// System package prefixes to skip
 const SKIP_PREFIXES: &[&str] = &[
     "Microsoft.Windows.",
     "Microsoft.UI.",
@@ -34,13 +32,9 @@ pub struct DetailedApp {
     pub size_kb: u64,
     pub icon: String,
 }
-
-/// Core scanner logic — called by the `get_detailed_apps` command in `commands/apps.rs`.
 pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
     let mut apps = Vec::new();
     let mut seen_names = std::collections::HashSet::new();
-
-    // 1. Registry Scanning (4 paths) - Win32/classic apps
     let registry_paths = [
         (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
         (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
@@ -57,20 +51,14 @@ pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
                     if display_name.is_empty() || seen_names.contains(&display_name) {
                         continue;
                     }
-
-                    // Skip GUID-like DisplayNames
                     let dn_check = display_name.trim_matches('{').trim_matches('}');
                     if dn_check.chars().filter(|c| *c == '-').count() >= 4 && dn_check.len() > 30 {
                         continue;
                     }
-
-                    // Skip SystemComponent=1
                     let system_component: u32 = sub_key.get_value("SystemComponent").unwrap_or(0);
                     if system_component == 1 {
                         continue;
                     }
-
-                    // Skip system install locations
                     let install_location: String = sub_key.get_value("InstallLocation").unwrap_or_default();
                     if install_location.to_lowercase().contains("\\systemapps\\")
                         || install_location.to_lowercase().contains("\\windowsapps\\microsoft.windows.")
@@ -132,18 +120,12 @@ pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
             for entry in entries {
                 let pkg_name = entry["Name"].as_str().unwrap_or("").to_string();
                 let install_location = entry["InstallLocation"].as_str().unwrap_or("").to_string();
-
-                // Skip system/framework packages by name prefix
                 if SKIP_PREFIXES.iter().any(|p| pkg_name.starts_with(p)) {
                     continue;
                 }
-
-                // Skip anything in SystemApps
                 if install_location.to_lowercase().contains("\\systemapps\\") {
                     continue;
                 }
-
-                // Get friendly display name
                 let ps_display_name = entry["DisplayName"].as_str().unwrap_or("");
                 let display_name = if !ps_display_name.is_empty() && !ps_display_name.starts_with("ms-resource:") {
                     ps_display_name.to_string()
@@ -176,12 +158,8 @@ pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
     apps.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
     Ok(apps)
 }
-
-// Resolve official DisplayName for Store apps
 fn get_appx_display_name(install_location: &str, package_name: &str) -> String {
     let mut name = String::new();
-
-    // 1. Try reading from AppxManifest.xml first (Fast)
     if !install_location.is_empty() {
         let manifest_path = format!("{}\\AppxManifest.xml", install_location);
         if let Ok(content) = std::fs::read_to_string(&manifest_path) {
@@ -193,8 +171,6 @@ fn get_appx_display_name(install_location: &str, package_name: &str) -> String {
             }
         }
     }
-
-    // 2. If name is ms-resource or empty, resolve via absolute PowerShell manifest method
     if name.is_empty() || name.starts_with("ms-resource:") {
         let ps_cmd = format!(
             "(Get-AppxPackage -Name \"{}\" | Get-AppxPackageManifest).Package.Properties.DisplayName", 
@@ -213,8 +189,6 @@ fn get_appx_display_name(install_location: &str, package_name: &str) -> String {
     } else {
         return name;
     }
-
-    // 3. Fallback: humanize the package name
     let after_dot = package_name.splitn(2, '.').nth(1).unwrap_or(package_name);
     let mut readable = String::new();
     for (i, ch) in after_dot.chars().enumerate() {
@@ -225,8 +199,6 @@ fn get_appx_display_name(install_location: &str, package_name: &str) -> String {
     }
     readable
 }
-
-// Find icon PNG in appx package folder
 fn find_appx_icon(install_location: &str) -> String {
     if install_location.is_empty() {
         return "".to_string();

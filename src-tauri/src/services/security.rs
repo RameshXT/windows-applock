@@ -47,7 +47,6 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 }
 
 pub fn encrypt(data: &[u8], secret: &str) -> String {
-    // Derive a 32-byte key using SHA256 of the secret for consistency
     use sha2::{Sha256, Digest};
     let mut hasher = Sha256::new();
     hasher.update(secret.as_bytes());
@@ -61,8 +60,6 @@ pub fn encrypt(data: &[u8], secret: &str) -> String {
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let ciphertext = cipher.encrypt(nonce, data).expect("Encryption failed");
-    
-    // Format: base64(nonce + ciphertext)
     let mut combined = nonce_bytes.to_vec();
     combined.extend_from_slice(&ciphertext);
     STANDARD.encode(combined)

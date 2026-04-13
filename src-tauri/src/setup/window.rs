@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use tauri::{App, Manager};
 use crate::models::AppState;
-
-/// Configures the main window: size constraints, stealth mode, and maximized start.
 pub fn setup_window(app: &mut App, state: Arc<AppState>) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(window) = app.get_webview_window("main") {
         let config = state.config.lock().unwrap();

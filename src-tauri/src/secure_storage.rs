@@ -51,8 +51,6 @@ const CREDENTIALS_FILE: &str = "credentials.enc";
 const SETTINGS_FILE: &str = "settings.json";
 const LOCKED_APPS_FILE: &str = "locked-apps.json";
 const LOGS_FILE: &str = "logs.enc";
-
-/// Resolves the absolute path to a file in the app data directory.
 fn resolve_path(app_handle: &AppHandle, filename: &str) -> Result<PathBuf, StorageError> {
     let dir = app_handle.path().app_data_dir()
         .map_err(|e| StorageError::PathError(e.to_string()))?;
@@ -63,8 +61,6 @@ fn resolve_path(app_handle: &AppHandle, filename: &str) -> Result<PathBuf, Stora
     
     Ok(dir.join(filename))
 }
-
-/// Sets Windows ACL so only the current user has access.
 pub fn harden_file_permissions(path: &Path) -> Result<(), StorageError> {
     #[cfg(target_os = "windows")]
     {
@@ -82,8 +78,6 @@ pub fn harden_file_permissions(path: &Path) -> Result<(), StorageError> {
     }
     Ok(())
 }
-
-/// Creates a .bak backup of the specified file.
 pub fn backup_file(path: &Path) -> Result<(), StorageError> {
     if !path.exists() {
         return Ok(());
@@ -95,8 +89,6 @@ pub fn backup_file(path: &Path) -> Result<(), StorageError> {
     harden_file_permissions(&bak_path)?;
     Ok(())
 }
-
-/// Restores from a .bak file.
 pub fn restore_from_backup(path: &Path) -> Result<(), StorageError> {
     let mut bak_path = path.to_path_buf();
     bak_path.set_extension("bak");
@@ -108,27 +100,17 @@ pub fn restore_from_backup(path: &Path) -> Result<(), StorageError> {
     fs::copy(&bak_path, path).map_err(|e| StorageError::BackupFailed(e.to_string()))?;
     Ok(())
 }
-
-/// Writes data atomically using a .tmp file and a backup flow.
 fn write_atomic(path: &Path, data: &[u8], is_encrypted: bool) -> Result<(), StorageError> {
-    // 1. Create backup
     backup_file(path)?;
-
-    // 2. Prepare .tmp path
     let mut tmp_path = path.to_path_buf();
     tmp_path.set_extension("tmp");
-
-    // 3. Write content to .tmp
     fs::write(&tmp_path, data).map_err(|e| StorageError::WriteFailure(e.to_string()))?;
     harden_file_permissions(&tmp_path)?;
-
-    // 4. Verify .tmp is valid
     let verify_result = if is_encrypted {
         crypto::decrypt_with_integrity(&fs::read(&tmp_path).unwrap_or_default())
             .map(|_| ())
             .map_err(|e| StorageError::Tampered(e.to_string()))
     } else {
-        // For json, we check the checksum wrapper
         let content = fs::read_to_string(&tmp_path).unwrap_or_default();
         serde_json::from_str::<IntegrityWrapper<serde_json::Value>>(&content)
             .map(|wrapper| {
@@ -144,8 +126,6 @@ fn write_atomic(path: &Path, data: &[u8], is_encrypted: bool) -> Result<(), Stor
         let _ = fs::remove_file(&tmp_path);
         return Err(StorageError::WriteFailure("Verification of .tmp failed".to_string()));
     }
-
-    // 5. Atomic Rename
     if let Err(e) = fs::rename(&tmp_path, path) {
         let _ = restore_from_backup(path);
         return Err(StorageError::WriteFailure(e.to_string()));
@@ -154,8 +134,6 @@ fn write_atomic(path: &Path, data: &[u8], is_encrypted: bool) -> Result<(), Stor
     harden_file_permissions(path)?;
     Ok(())
 }
-
-/// Reads and decrypts a file, verifying integrity.
 pub fn read_encrypted_internal<T: DeserializeOwned>(app_handle: &AppHandle, filename: &str) -> Result<T, StorageError> {
     let path = resolve_path(app_handle, filename)?;
     if !path.exists() {
@@ -171,8 +149,6 @@ pub fn read_encrypted_internal<T: DeserializeOwned>(app_handle: &AppHandle, file
 
     serde_json::from_slice(&decrypted).map_err(|e| StorageError::SerializationError(e.to_string()))
 }
-
-/// Encrypts and writes a file with integrity and backup.
 pub fn write_encrypted_internal<T: Serialize>(app_handle: &AppHandle, filename: &str, data: &T) -> Result<(), StorageError> {
     let path = resolve_path(app_handle, filename)?;
     let json = serde_json::to_vec(data).map_err(|e| StorageError::SerializationError(e.to_string()))?;
@@ -180,8 +156,6 @@ pub fn write_encrypted_internal<T: Serialize>(app_handle: &AppHandle, filename: 
     
     write_atomic(&path, &encrypted, true)
 }
-
-/// Reads a plaintext JSON file with an integrity checksum wrapper.
 pub fn read_json_internal<T: DeserializeOwned + Serialize>(app_handle: &AppHandle, filename: &str) -> Result<T, StorageError> {
     let path = resolve_path(app_handle, filename)?;
     if !path.exists() {
@@ -190,8 +164,6 @@ pub fn read_json_internal<T: DeserializeOwned + Serialize>(app_handle: &AppHandl
 
     let content = fs::read_to_string(&path).map_err(|e| StorageError::WriteFailure(e.to_string()))?;
     let wrapper: IntegrityWrapper<T> = serde_json::from_str(&content).map_err(|e| StorageError::SerializationError(e.to_string()))?;
-    
-    // Verify checksum
     let data_json = serde_json::to_string(&wrapper.data).map_err(|e| StorageError::SerializationError(e.to_string()))?;
     let actual_checksum = hex::encode(crypto::calculate_checksum(data_json.as_bytes()));
     
@@ -201,8 +173,6 @@ pub fn read_json_internal<T: DeserializeOwned + Serialize>(app_handle: &AppHandl
 
     Ok(wrapper.data)
 }
-
-/// Writes a plaintext JSON file with an integrity checksum wrapper.
 pub fn write_json_internal<T: Serialize + Clone>(app_handle: &AppHandle, filename: &str, data: &T) -> Result<(), StorageError> {
     let path = resolve_path(app_handle, filename)?;
     let data_json = serde_json::to_string(data).map_err(|e| StorageError::SerializationError(e.to_string()))?;
@@ -216,10 +186,6 @@ pub fn write_json_internal<T: Serialize + Clone>(app_handle: &AppHandle, filenam
     let final_json = serde_json::to_vec(&wrapper).map_err(|e| StorageError::SerializationError(e.to_string()))?;
     write_atomic(&path, &final_json, false)
 }
-
-// -------------------------------------------------------------------------
-// INTERNAL LOGIC
-// -------------------------------------------------------------------------
 
 pub async fn verify_storage_integrity_internal(app_handle: AppHandle) -> Result<bool, String> {
     let mut all_valid = true;
@@ -253,7 +219,6 @@ pub async fn verify_storage_integrity_internal(app_handle: AppHandle) -> Result<
 
         if !valid {
             all_valid = false;
-            // Requirement 17: Log tamper event
             let _ = log_event(&app_handle, "INTEGRITY_FAILURE", &format!("File {} tampered", file)).await;
         }
     }
@@ -274,8 +239,6 @@ pub async fn get_storage_status_internal(app_handle: AppHandle) -> Result<Storag
         logs_valid: logs,
     })
 }
-
-// Helper for logging
 pub async fn log_event(app_handle: &AppHandle, action: &str, details: &str) -> Result<(), String> {
     let mut logs: Vec<serde_json::Value> = read_encrypted_internal(app_handle, LOGS_FILE).unwrap_or_default();
     logs.push(serde_json::json!({

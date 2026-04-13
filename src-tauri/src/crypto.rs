@@ -23,8 +23,6 @@ impl fmt::Display for CryptoError {
         }
     }
 }
-
-/// Derives a 32-byte AES key from the machine's unique ID using SHA-256.
 pub fn derive_encryption_key() -> Result<[u8; 32], CryptoError> {
     let id = machine_uid::get().map_err(|e| CryptoError::KeyDerivationFailed(e.to_string()))?;
     let mut hasher = Sha256::new();
@@ -34,8 +32,6 @@ pub fn derive_encryption_key() -> Result<[u8; 32], CryptoError> {
     key.copy_from_slice(&result);
     Ok(key)
 }
-
-/// Calculates SHA-256 checksum of data.
 pub fn calculate_checksum(data: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(data);
@@ -44,35 +40,23 @@ pub fn calculate_checksum(data: &[u8]) -> [u8; 32] {
     checksum.copy_from_slice(&result);
     checksum
 }
-
-/// Encrypts data with AES-256-GCM, prepending a random nonce and internal checksum.
 pub fn encrypt_with_integrity(plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let key_bytes = derive_encryption_key()?;
     let cipher = Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
-    
-    // Create payload: [Checksum (32 bytes)] + [Plaintext]
     let checksum = calculate_checksum(plaintext);
     let mut payload = Vec::with_capacity(32 + plaintext.len());
     payload.extend_from_slice(&checksum);
     payload.extend_from_slice(plaintext);
-
-    // Generate random 96-bit nonce
     let mut nonce_bytes = [0u8; 12];
     thread_rng().fill(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
-
-    // Encrypt
     let ciphertext = cipher.encrypt(nonce, payload.as_ref())
         .map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
-
-    // Return: [Nonce (12)] + [Ciphertext]
     let mut result = Vec::with_capacity(12 + ciphertext.len());
     result.extend_from_slice(&nonce_bytes);
     result.extend_from_slice(&ciphertext);
     Ok(result)
 }
-
-/// Decrypts data, verifies the prepended nonce and internal integrity checksum.
 pub fn decrypt_with_integrity(data: &[u8]) -> Result<Vec<u8>, CryptoError> {
     if data.len() < 12 + 32 {
         return Err(CryptoError::DecryptionFailed("Data too short".to_string()));
@@ -80,20 +64,14 @@ pub fn decrypt_with_integrity(data: &[u8]) -> Result<Vec<u8>, CryptoError> {
 
     let key_bytes = derive_encryption_key()?;
     let cipher = Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| CryptoError::DecryptionFailed(e.to_string()))?;
-
-    // Extract nonce and ciphertext
     let (nonce_bytes, ciphertext) = data.split_at(12);
     let nonce = Nonce::from_slice(nonce_bytes);
-
-    // Decrypt
     let decrypted_payload = cipher.decrypt(nonce, ciphertext)
         .map_err(|e| CryptoError::DecryptionFailed(e.to_string()))?;
 
     if decrypted_payload.len() < 32 {
         return Err(CryptoError::DecryptionFailed("Invalid decrypted payload".to_string()));
     }
-
-    // Split checksum and plaintext
     let (stored_checksum, plaintext) = decrypted_payload.split_at(32);
     let calculated_checksum = calculate_checksum(plaintext);
 

@@ -1,15 +1,11 @@
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
 use crate::models::{AppState, LockedApp};
-
-/// Returns the app currently blocked by the gatekeeper monitor.
 #[tauri::command]
 pub async fn get_blocked_app(state: State<'_, Arc<AppState>>) -> Result<Option<LockedApp>, String> {
     let app = state.active_blocked_app.lock().unwrap();
     Ok(app.clone())
 }
-
-/// Releases the blocked app state and closes the gatekeeper popup.
 #[tauri::command]
 pub async fn release_app(
     state: State<'_, Arc<AppState>>,

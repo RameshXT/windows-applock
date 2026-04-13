@@ -2,8 +2,6 @@ use std::sync::Arc;
 use tauri::App;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, Modifiers, Code, ShortcutState};
 use crate::models::AppState;
-
-/// Registers the global panic shortcut (Ctrl+Alt+L) to instantly lock the session.
 pub fn register_shortcuts(app: &mut App, state: Arc<AppState>) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::Manager;
     let panic_shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyL);

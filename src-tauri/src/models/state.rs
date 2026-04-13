@@ -9,16 +9,12 @@ use crate::window_manager::{WindowSnapshot, SendHhook};
 use crate::rate_limiter::{RateLimitState, DebounceState};
 
 use chrono::{DateTime, Utc};
-
-/// Hard lock state for an application or the dashboard.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HardLockState {
     pub locked: bool,
     pub locked_at: Option<DateTime<Utc>>,
     pub app_id: String,
 }
-
-/// Shared application runtime state managed by Tauri's state manager.
 pub struct AppState {
     pub config: Mutex<AppConfig>,
     pub is_unlocked: Mutex<bool>,

@@ -5,15 +5,11 @@ use crate::utils::config::save_config;
 
 #[cfg(target_os = "windows")]
 use winreg::{RegKey, enums::*};
-
-/// Returns the full application configuration.
 #[tauri::command]
 pub async fn get_config(state: State<'_, Arc<AppState>>) -> Result<AppConfig, String> {
     let config = state.config.lock().unwrap();
     Ok(config.clone())
 }
-
-/// Persists updated settings, handling autostart registry and stealth mode side-effects.
 #[tauri::command]
 pub async fn update_settings(
     new_config: AppConfig,
@@ -65,8 +61,6 @@ pub async fn update_settings(
 
     save_config(&config, &state.config_path)
 }
-
-/// Wipes all configuration and triggers a full app reload.
 #[tauri::command]
 pub async fn reset_app(
     state: State<'_, Arc<AppState>>,

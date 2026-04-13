@@ -11,22 +11,16 @@ use tokio::time::{timeout, Duration};
 
 const CREDENTIALS_FILE: &str = "credentials.enc";
 const LOCKOUT_FILE: &str = "lockout.enc";
-
-/// Result of a verification attempt, returned to the frontend.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VerifyResult {
     pub success: bool,
     pub token: Option<String>,
 }
-
-/// Status of the lockout state, for UI purposes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct LockoutStatus {
     pub is_locked_out: bool,
     pub seconds_remaining: Option<u64>,
 }
-
-/// Internal error types for verification.
 #[derive(Debug)]
 pub enum VerifyError {
     HashLoadFailed,
@@ -38,8 +32,6 @@ pub enum VerifyError {
     InputInvalid,
     HardLocked,
 }
-
-/// Main entry point for credential verification called from the frontend.
 #[tauri::command]
 pub async fn verify_credential(
     input: String,
@@ -48,11 +40,8 @@ pub async fn verify_credential(
     state: State<'_, Arc<AppState>>,
     app_handle: AppHandle,
 ) -> Result<VerifyResult, String> {
-    // 1. Parse and validate context
     let verify_context = VerifyContext::from_str(&context)
         .ok_or_else(|| "Verification failed".to_string())?;
-
-    // 2. Hard lock check
     let target_app_id = app_id.clone().unwrap_or_else(|| "dashboard_lock".to_string());
     {
         let hard_locks = state.hard_locks.lock().unwrap();
@@ -62,22 +51,16 @@ pub async fn verify_credential(
             }
         }
     }
-
-    // 3. Debounce rapid calls (checked BEFORE argon2)
     {
         let mut debounce = state.debounce_state.lock().unwrap();
         if apply_debounce(verify_context, &mut debounce) {
-            // Drop call silently, do not log, do not count attempt
             return Err("Verification failed".to_string());
         }
     }
-
-    // 3. Rate limit check (checked BEFORE argon2)
     let rate_limit_reason = {
         let mut rl = state.rate_limit_state.lock().unwrap();
         match check_rate_limit(&mut rl) {
             RateLimitDecision::Allowed => {
-                // Requirement 48: Sliding window tracks ALL verification attempts
                 crate::rate_limiter::record_attempt_timestamp(&mut rl);
                 None
             },
@@ -99,11 +82,8 @@ pub async fn verify_credential(
             was_debounced: false,
             verification_duration_ms: 0,
         });
-        // Requirement 46: generic error string
         return Err("Verification failed".to_string());
     }
-
-    // 4. Sanitize input (trim, length check, no null bytes)
     let sanitized = input.trim();
     if sanitized.is_empty() || sanitized.len() > 128 || sanitized.contains('\0') {
         let rl_state = state.rate_limit_state.lock().unwrap();
@@ -120,8 +100,6 @@ pub async fn verify_credential(
         });
         return Err("Verification failed".to_string());
     }
-
-    // 5. Run verification (spawn_blocking with timeout of 2 seconds)
     let start_time = Utc::now();
     let verify_future = verify_internal(&app_handle, sanitized);
     let result = timeout(Duration::from_secs(2), verify_future).await;
@@ -135,8 +113,6 @@ pub async fn verify_credential(
     };
 
     let duration_ms = (Utc::now() - start_time).num_milliseconds().max(0) as u64;
-
-    // 6. Update and persist rate limit state (survives app restart)
     let attempt_number = {
         let mut rl = state.rate_limit_state.lock().unwrap();
         update_lockout_state(success, &mut rl);
@@ -159,8 +135,6 @@ pub async fn verify_credential(
         
         rl.consecutive_failures
     };
-
-    // 7. Log every verification attempt with full context
     let _ = record_attempt(&app_handle, VerifyAttempt {
         timestamp: Utc::now(),
         success,
@@ -197,12 +171,9 @@ pub async fn verify_credential(
         }
         Ok(VerifyResult { success: true, token: Some(token) })
     } else {
-        // Requirement 46: generic error string
         Err("Verification failed".to_string())
     }
 }
-
-/// Returns the current lockout status to the frontend.
 #[tauri::command]
 pub fn get_lockout_status(state: State<'_, Arc<AppState>>) -> Result<LockoutStatus, String> {
     let mut rl = state.rate_limit_state.lock().unwrap();
@@ -213,7 +184,6 @@ pub fn get_lockout_status(state: State<'_, Arc<AppState>>) -> Result<LockoutStat
         }),
         _ => {
             if rl.is_locked_out && rl.lockout_until.is_none() {
-                // Hard lockout
                 Ok(LockoutStatus {
                     is_locked_out: true,
                     seconds_remaining: None,
@@ -227,26 +197,18 @@ pub fn get_lockout_status(state: State<'_, Arc<AppState>>) -> Result<LockoutStat
         }
     }
 }
-
-/// Reset lockout state after administrative recovery.
 #[tauri::command]
 pub fn clear_lockout_admin(app_handle: AppHandle, state: State<'_, Arc<AppState>>) -> Result<(), String> {
     let mut rl = state.rate_limit_state.lock().unwrap();
     *rl = RateLimitState::default();
     persist_lockout_state(&app_handle, &rl).map_err(|e| e.to_string())
 }
-
-/// Internal verification function using Argon2.
-/// Runs in spawn_blocking to avoid blocking the async runtime.
 pub async fn verify_internal(app_handle: &AppHandle, input: &str) -> Result<bool, VerifyError> {
-    // a) Load stored hash from credentials.enc
     let cred_config: crate::credential_manager::CredentialConfig = read_encrypted_internal(app_handle, CREDENTIALS_FILE)
         .map_err(|_| VerifyError::HashLoadFailed)?;
 
     let input_bytes = input.as_bytes().to_vec();
     let hash_str = cred_config.hash.clone();
-
-    // c) spawn_blocking -> argon2 verify
     let is_valid = tokio::task::spawn_blocking(move || {
         let parsed_hash = PasswordHash::new(&hash_str).map_err(|_| ())?;
         Argon2::default()
@@ -258,13 +220,9 @@ pub async fn verify_internal(app_handle: &AppHandle, input: &str) -> Result<bool
 
     Ok(is_valid)
 }
-
-/// Persist lockout state to encrypted storage.
 pub fn persist_lockout_state(app_handle: &AppHandle, state: &RateLimitState) -> Result<(), String> {
     write_encrypted_internal(app_handle, LOCKOUT_FILE, state).map_err(|e| e.to_string())
 }
-
-/// Load lockout state from encrypted storage.
 pub fn load_lockout_state(app_handle: &AppHandle) -> Result<RateLimitState, String> {
     read_encrypted_internal(app_handle, LOCKOUT_FILE).map_err(|e| e.to_string())
 }

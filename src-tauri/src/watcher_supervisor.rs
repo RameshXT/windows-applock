@@ -22,8 +22,6 @@ impl WatcherSupervisor {
         let max_attempts = 5;
 
         loop {
-            // Monitor health (in this implementation, we just ensure the task is running)
-            // If we had a ping/pong channel, we'd check it here.
             
             let state = *self.session_manager.watcher_state.read().unwrap();
             
@@ -39,9 +37,6 @@ impl WatcherSupervisor {
                     })).unwrap();
 
                     sleep(backoff).await;
-                    
-                    // Logic to restart watcher tasks would go here.
-                    // For now, we manually reset state to Running if auto-start is true.
                     let mut state_write = self.session_manager.watcher_state.write().unwrap();
                     *state_write = WatcherState::Running;
                 } else {

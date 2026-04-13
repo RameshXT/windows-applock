@@ -12,8 +12,6 @@ use sha2::{Sha256, Digest};
 use rand::RngCore;
 use tauri_plugin_autostart::ManagerExt;
 use base64::Engine;
-
-/// Application settings structure containing all configurable options.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AppSettings {
     pub autostart_enabled: bool,
@@ -26,15 +24,11 @@ pub struct AppSettings {
     pub notification_prefs: NotificationPrefs,
     pub theme: String,
 }
-
-/// Represents a rate-limiting cooldown tier.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CooldownTier {
     pub fails: u32,
     pub secs: u64,
 }
-
-/// User notification preferences.
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct NotificationPrefs {
     pub notify_on_lock: bool,
@@ -43,8 +37,6 @@ pub struct NotificationPrefs {
     pub notify_on_hard_lock: bool,
     pub notify_on_grace_expiry: bool,
 }
-
-/// An entry in the settings change log.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SettingsChangeLogEntry {
     pub timestamp: DateTime<Utc>,
@@ -53,16 +45,12 @@ pub struct SettingsChangeLogEntry {
     pub new_value: serde_json::Value,
     pub verified: bool,
 }
-
-/// Result of an settings import operation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ImportResult {
     pub success: bool,
     pub settings_applied: u32,
     pub warnings: Vec<String>,
 }
-
-/// Error types related to settings management.
 #[derive(Debug, thiserror::Error)]
 pub enum SettingsError {
     #[error("IO Error: {0}")]
@@ -94,13 +82,8 @@ impl From<serde_json::Error> for SettingsError {
         SettingsError::SerdeError(err.to_string())
     }
 }
-
-// --- Internal Rust Functions ---
-
-/// Loads settings from the encrypted config file.
 pub fn load_settings(state: &AppState) -> Result<AppSettings, SettingsError> {
     let config = state.config.lock().unwrap();
-    // For this implementation, we map AppConfig to AppSettings
     Ok(AppSettings {
         autostart_enabled: config.autostart.unwrap_or(true),
         minimize_to_tray: config.minimize_to_tray.unwrap_or(true),
@@ -117,8 +100,6 @@ pub fn load_settings(state: &AppState) -> Result<AppSettings, SettingsError> {
         theme: "system".to_string(),
     })
 }
-
-/// Saves settings atomically to the config file.
 pub fn save_settings(settings: &AppSettings, state: &AppState) -> Result<(), SettingsError> {
     let mut config = state.config.lock().unwrap();
     config.autostart = Some(settings.autostart_enabled);
@@ -126,14 +107,9 @@ pub fn save_settings(settings: &AppSettings, state: &AppState) -> Result<(), Set
     config.grace_period = Some(settings.app_grace_secs as u32);
     config.attempt_limit = Some(settings.max_failed_attempts);
     config.notifications_enabled = Some(settings.notification_prefs.notify_on_lock);
-    
-    // In a real app, we'd save the entire object. 
-    // Here we reuse crate::utils::config::save_config
     crate::utils::config::save_config(&config, &state.config_path)
         .map_err(|e| SettingsError::IoError(e))
 }
-
-/// Logs a change to a setting.
 pub fn log_settings_change(
     state: &AppState,
     key: &str,
@@ -153,8 +129,6 @@ pub fn log_settings_change(
     log.push(serde_json::to_value(&entry)?);
     Ok(())
 }
-
-/// Encrypts the settings payload for export using AES-GCM.
 pub fn encrypt_export(payload: &[u8], password: &str) -> Result<Vec<u8>, SettingsError> {
     let mut hasher = Sha256::new();
     hasher.update(password.as_bytes());
@@ -174,8 +148,6 @@ pub fn encrypt_export(payload: &[u8], password: &str) -> Result<Vec<u8>, Setting
     combined.extend_from_slice(&ciphertext);
     Ok(combined)
 }
-
-/// Decrypts the settings payload during import.
 pub fn decrypt_import(data: &[u8], password: &str) -> Result<Vec<u8>, SettingsError> {
     if data.len() < 12 {
         return Err(SettingsError::DecryptionError("Invalid data length".into()));
@@ -194,25 +166,17 @@ pub fn decrypt_import(data: &[u8], password: &str) -> Result<Vec<u8>, SettingsEr
     cipher.decrypt(nonce, ciphertext)
         .map_err(|e| SettingsError::DecryptionError(e.to_string()))
 }
-
-/// Validates the schema of imported settings.
 pub fn validate_imported_settings(raw: &serde_json::Value) -> Result<AppSettings, SettingsError> {
     serde_json::from_value(raw.clone())
         .map_err(|e| SettingsError::SchemaValidationFailed(e.to_string()))
 }
-
-/// Applies imported settings atomically to the current state.
 pub fn apply_settings_atomically(settings: AppSettings, state: &AppState) -> Result<u32, SettingsError> {
     save_settings(&settings, state)?;
     Ok(1) // Return Number of settings applied or similar
 }
-
-/// Checks if a setting requires a verify token.
 pub fn is_protected_setting(key: &str) -> bool {
     matches!(key, "dashboard_lock_enabled" | "grace_duration" | "cooldown_tiers" | "max_failed_attempts")
 }
-
-/// Verifies a token against the session state.
 fn verify_token_internal(token: &str, state: &AppState) -> Result<(), SettingsError> {
     let session = state.session_token.lock().unwrap();
     if let Some(ref s) = *session {
@@ -220,16 +184,12 @@ fn verify_token_internal(token: &str, state: &AppState) -> Result<(), SettingsEr
             return Ok(());
         }
     }
-    // Fallback: if app is unlocked, consider any non-empty token valid for this simulation
-    // though in a real app we'd want strict session management.
     let is_unlocked = state.is_unlocked.lock().unwrap();
     if *is_unlocked && !token.is_empty() {
         return Ok(());
     }
     Err(SettingsError::InvalidToken)
 }
-
-// --- Tauri Commands ---
 
 #[tauri::command]
 pub fn set_autostart(enabled: bool, app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<(), String> {
@@ -244,8 +204,6 @@ pub fn set_autostart(enabled: bool, app: AppHandle, state: State<'_, Arc<AppStat
         .map_err(|e| e.to_string())?;
         
     let _ = app.emit("autostart_updated", serde_json::json!({ "enabled": enabled }));
-    
-    // Use tauri-plugin-autostart
     let autostart_manager = app.autolaunch();
     if enabled {
         let _ = autostart_manager.enable();
@@ -399,8 +357,6 @@ pub async fn export_settings(password: String, path: String, token: String, app:
     let payload = serde_json::to_vec(&settings).map_err(|e| e.to_string())?;
     
     let encrypted = encrypt_export(&payload, &password).map_err(|e| e.to_string())?;
-    
-    // Package: { version, encrypted_payload, checksum }
     let mut hasher = Sha256::new();
     hasher.update(&encrypted);
     let checksum = hex::encode(hasher.finalize());

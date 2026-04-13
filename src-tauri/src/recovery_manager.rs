@@ -18,32 +18,24 @@ const CREDENTIALS_FILE: &str = "credentials.enc";
 const LOCKED_APPS_FILE: &str = "locked-apps.json";
 const SETTINGS_FILE: &str = "settings.json";
 const LOGS_FILE: &str = "logs.enc";
-
-/// Result of a hard lock status check.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HardLockStatus {
     pub is_locked: bool,
     pub locked_at: Option<String>,
     pub app_id: String,
 }
-
-/// Result of a recovery attempt.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecoveryResult {
     pub success: bool,
     pub access_restored: bool,
     pub failure_reason: Option<String>,
 }
-
-/// Result of a reset verification step.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResetVerifyResult {
     pub verified: bool,
     pub reset_token: Option<String>,
     pub failure_reason: Option<String>,
 }
-
-/// Result of a full application reset.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResetResult {
     pub success: bool,
@@ -51,8 +43,6 @@ pub struct ResetResult {
     pub registry_cleared: bool,
     pub errors: Vec<String>,
 }
-
-/// Internal errors for the recovery module.
 #[derive(Debug)]
 pub enum RecoveryError {
     #[allow(dead_code)]
@@ -86,10 +76,6 @@ impl From<RecoveryError> for String {
         }
     }
 }
-
-// --- TAURI COMMANDS ---
-
-/// Returns the hard lock status for a specific app_id.
 #[tauri::command]
 pub fn get_hard_lock_status(
     app_id: String,
@@ -110,14 +96,10 @@ pub fn get_hard_lock_status(
         })
     }
 }
-
-/// Generates a new recovery key for the frontend.
 #[tauri::command]
 pub fn get_new_recovery_key() -> String {
     generate_recovery_key()
 }
-
-/// Verifies a recovery key and restores access if successful.
 #[tauri::command]
 pub async fn verify_recovery_key(
     input: String,
@@ -125,7 +107,6 @@ pub async fn verify_recovery_key(
     state: State<'_, Arc<AppState>>,
     app_handle: AppHandle,
 ) -> Result<RecoveryResult, String> {
-    // 1. Check recovery lockout
     {
         let mut counters = state.recovery_fail_counter.lock().unwrap();
         let counter = counters.entry(app_id.clone()).or_insert((0, None));
@@ -144,12 +125,9 @@ pub async fn verify_recovery_key(
             }
         }
     }
-
-    // 2. Verify key
     let success = verify_recovery_key_internal(&input, &app_handle).await;
 
     if success.is_ok() && success.unwrap() {
-        // Success flow
         {
             let mut counters = state.recovery_fail_counter.lock().unwrap();
             counters.remove(&app_id);
@@ -158,8 +136,6 @@ pub async fn verify_recovery_key(
         let _ = reset_fail_counter(&app_id, &state);
         let _ = clear_hard_lock(&app_id, &state);
         let _ = clear_cooldown(&app_id, &state);
-
-        // Start fresh grace session if it's an app
         if app_id != "dashboard_lock" {
              let app_name = {
                 let config = state.config.lock().unwrap();
@@ -170,16 +146,12 @@ pub async fn verify_recovery_key(
             };
             let _ = crate::grace_manager::start_grace_session(&app_id, &app_name, app_handle.clone()).await;
         }
-
-        // Write recovery event
         let _ = log_event(
             &app_handle,
             "recovery_used",
             &format!("Access restored for app: {}", app_id),
         )
         .await;
-
-        // Emit events
         let _ = app_handle.emit("recovery_key_verified", serde_json::json!({ "app_id": app_id, "success": true }));
         let _ = app_handle.emit("access_restored_via_recovery", serde_json::json!({ "app_id": app_id, "restored_at": Utc::now().to_rfc3339() }));
         let _ = app_handle.emit("fail_counter_reset", serde_json::json!({ "app_id": app_id }));
@@ -191,7 +163,6 @@ pub async fn verify_recovery_key(
             failure_reason: None,
         })
     } else {
-        // Failure flow
         let (attempts, lockout) = {
             let mut counters = state.recovery_fail_counter.lock().unwrap();
             let counter = counters.get_mut(&app_id).unwrap();
@@ -215,8 +186,6 @@ pub async fn verify_recovery_key(
         })
     }
 }
-
-/// Initiates a full reset by verifying credentials or recovery key.
 #[tauri::command]
 pub async fn initiate_full_reset(
     method: String,
@@ -246,7 +215,6 @@ pub async fn initiate_full_reset(
             failure_reason: None,
         })
     } else {
-        // Increment fail counter as per requirement
         let mut rl = state.rate_limit_state.lock().unwrap();
         crate::rate_limiter::update_lockout_state(false, &mut rl);
         let _ = crate::credential_verifier::persist_lockout_state(&app_handle, &rl);
@@ -258,8 +226,6 @@ pub async fn initiate_full_reset(
         })
     }
 }
-
-/// Performs the full reset if a valid token is provided.
 #[tauri::command]
 pub async fn perform_full_reset(
     token: String,
@@ -269,11 +235,7 @@ pub async fn perform_full_reset(
     if !validate_reset_token(&token, &state) {
         return Err(RecoveryError::InvalidToken.into());
     }
-
-    // Wipe all data
     let result = wipe_all_data(&state, &app_handle);
-
-    // Emit event
     let _ = app_handle.emit("full_reset_complete", serde_json::json!({
         "files_deleted": result.files_deleted.len(),
         "restarting_onboarding": true
@@ -281,8 +243,6 @@ pub async fn perform_full_reset(
 
     Ok(result)
 }
-
-/// Hashes and stores the recovery key during onboarding.
 #[tauri::command]
 pub async fn store_recovery_key_hash(
     raw_key: String,
@@ -293,16 +253,8 @@ pub async fn store_recovery_key_hash(
     
     let _ = app_handle.emit("recovery_key_stored", serde_json::json!({ "stored_at": Utc::now().to_rfc3339() }));
     
-    // Clear raw key from memory? Tauri state doesn't hold it, it's just in this call.
-    // The requirement says "After onboarding confirmed complete: raw key discarded from memory".
-    // This is handled by the fact that we don't store it in any persistent AppState field.
-    
     Ok(())
 }
-
-// --- INTERNAL FUNCTIONS ---
-
-/// Generates a new recovery key in XXXX-XXXX-XXXX-XXXX-XXXX format.
 pub fn generate_recovery_key() -> String {
     let mut rng = thread_rng();
     let chars: Vec<char> = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect();
@@ -320,8 +272,6 @@ pub fn generate_recovery_key() -> String {
     
     groups.join("-")
 }
-
-/// Hashes the raw recovery key and stores it in recovery.enc.
 fn hash_and_store_recovery_key(raw: &str, app_handle: &AppHandle) -> Result<(), RecoveryError> {
     let normalized = normalize_recovery_key(raw);
     let salt = SaltString::generate(&mut thread_rng());
@@ -335,8 +285,6 @@ fn hash_and_store_recovery_key(raw: &str, app_handle: &AppHandle) -> Result<(), 
     write_encrypted_internal(app_handle, RECOVERY_FILE, &password_hash)
         .map_err(|e| RecoveryError::StorageError(e.to_string()))
 }
-
-/// Verifies a recovery key against the stored hash.
 async fn verify_recovery_key_internal(input: &str, app_handle: &AppHandle) -> Result<bool, RecoveryError> {
     let normalized = normalize_recovery_key(input);
     let stored_hash: String = read_encrypted_internal(app_handle, RECOVERY_FILE)
@@ -353,10 +301,7 @@ async fn verify_recovery_key_internal(input: &str, app_handle: &AppHandle) -> Re
 
     Ok(is_valid)
 }
-
-/// Resets the fail counter for an app.
 fn reset_fail_counter(app_id: &str, state: &AppState) -> Result<(), RecoveryError> {
-    // If it's the dashboard, reset main rate limiter
     if app_id == "dashboard_lock" {
         let mut rl = state.rate_limit_state.lock().unwrap();
         rl.consecutive_failures = 0;
@@ -364,8 +309,6 @@ fn reset_fail_counter(app_id: &str, state: &AppState) -> Result<(), RecoveryErro
     }
     Ok(())
 }
-
-/// Clears the hard lock state for an app.
 fn clear_hard_lock(app_id: &str, state: &AppState) -> Result<(), RecoveryError> {
     let mut locks = state.hard_locks.lock().unwrap();
     if let Some(lock) = locks.get_mut(app_id) {
@@ -374,8 +317,6 @@ fn clear_hard_lock(app_id: &str, state: &AppState) -> Result<(), RecoveryError> 
     }
     Ok(())
 }
-
-/// Clears any active cooldown (lockout) for an app.
 fn clear_cooldown(app_id: &str, state: &AppState) -> Result<(), RecoveryError> {
     if app_id == "dashboard_lock" {
         let mut rl = state.rate_limit_state.lock().unwrap();
@@ -384,8 +325,6 @@ fn clear_cooldown(app_id: &str, state: &AppState) -> Result<(), RecoveryError> {
     }
     Ok(())
 }
-
-/// Wipes all application data files and clears memory state.
 fn wipe_all_data(state: &AppState, app_handle: &AppHandle) -> ResetResult {
     let mut files_deleted = Vec::new();
     let mut errors = Vec::new();
@@ -410,8 +349,6 @@ fn wipe_all_data(state: &AppState, app_handle: &AppHandle) -> ResetResult {
             }
         }
     }
-
-    // Remove autostart registry key
     let mut registry_cleared = false;
     #[cfg(target_os = "windows")]
     {
@@ -424,8 +361,6 @@ fn wipe_all_data(state: &AppState, app_handle: &AppHandle) -> ResetResult {
             }
         }
     }
-
-    // Clear memory state
     {
         let mut locks = state.hard_locks.lock().unwrap();
         locks.clear();
@@ -454,18 +389,12 @@ fn wipe_all_data(state: &AppState, app_handle: &AppHandle) -> ResetResult {
         errors,
     }
 }
-
-/// Normalizes the recovery key input (uppercase, strip dashes).
 fn normalize_recovery_key(input: &str) -> String {
     input.replace("-", "").to_uppercase()
 }
-
-/// Generates a short-lived UUID reset token.
 fn generate_reset_token() -> String {
     Uuid::new_v4().to_string()
 }
-
-/// Validates the reset token and removes it (single-use).
 fn validate_reset_token(token: &str, state: &AppState) -> bool {
     let mut tokens = state.reset_tokens.lock().unwrap();
     if let Some(expiry) = tokens.get(token) {

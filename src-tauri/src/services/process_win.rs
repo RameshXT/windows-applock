@@ -147,8 +147,6 @@ pub fn get_processes() -> Vec<ProcessInfo> {
         if Process32First(snapshot, &mut pe) != FALSE {
             loop {
                 let pid = pe.th32ProcessID;
-                
-                // Convert szExeFile ([i8; 260]) to String
                 let name = pe.szExeFile.iter()
                     .take_while(|&&c| c != 0)
                     .map(|&c| c as u8 as char)

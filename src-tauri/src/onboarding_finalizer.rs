@@ -19,10 +19,6 @@ use crate::models::AppState;
 use std::sync::Arc;
 use rand::RngCore;
 use thiserror::Error;
-
-// --- Data Structures ---
-
-/// Payload received from the frontend onboarding process.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OnboardingPayload {
     pub raw_credential: String,
@@ -30,16 +26,12 @@ pub struct OnboardingPayload {
     pub locked_apps: Vec<OnboardingAppEntry>,
     pub settings: OnboardingSettings,
 }
-
-/// Represents an application selected to be locked during onboarding.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnboardingAppEntry {
     pub app_id: String,
     pub exe_path: String,
     pub display_name: String,
 }
-
-/// Initial settings configured during onboarding.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnboardingSettings {
     pub autostart_enabled: bool,
@@ -53,15 +45,11 @@ pub struct OnboardingSettings {
     pub notify_on_unlock: bool,
     pub notify_on_fail: bool,
 }
-
-/// Type of credential chosen by the user.
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum CredentialType {
     Pin,
     Password,
 }
-
-/// Tracks which artifacts were successfully written to disk for potential rollback.
 #[derive(Debug, Default, Clone)]
 pub struct FinalizeArtifacts {
     pub credential_written: bool,
@@ -69,8 +57,6 @@ pub struct FinalizeArtifacts {
     pub settings_written: bool,
     pub autostart_written: bool,
 }
-
-/// Result of the finalization process returned to the frontend.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FinalizeResult {
     pub success: bool,
@@ -80,15 +66,11 @@ pub struct FinalizeResult {
     pub apps_saved: u32,
     pub stale_apps: u32,
 }
-
-/// Internal result of saving the locked apps list.
 #[derive(Debug)]
 pub struct SavedAppsResult {
     pub saved: u32,
     pub stale: u32,
 }
-
-/// Errors that can occur during the finalization process.
 #[derive(Debug, Error)]
 pub enum FinalizeError {
     #[error("Credential Hash Failed: {0}")]
@@ -112,11 +94,6 @@ pub enum FinalizeError {
     #[error("IO Error: {0}")]
     IoError(String),
 }
-
-// --- Implementation ---
-
-/// Main Tauri command to finalize the onboarding process.
-/// Executes all steps atomically and handles rollbacks on failure.
 #[tauri::command]
 pub async fn finalize_onboarding(
     payload: OnboardingPayload,
@@ -124,14 +101,10 @@ pub async fn finalize_onboarding(
     app_handle: AppHandle,
 ) -> Result<FinalizeResult, String> {
     let mut artifacts = FinalizeArtifacts::default();
-    
-    // Convert cred_type string to enum
     let cred_type = match payload.cred_type.to_lowercase().as_str() {
         "pin" => CredentialType::Pin,
         _ => CredentialType::Password,
     };
-
-    // Step 1: Secure Credential
     emit_finalize_progress(&app_handle, "Securing credential", "in_progress");
     match store_credential(&payload.raw_credential, cred_type) {
         Ok(_) => {
@@ -140,8 +113,6 @@ pub async fn finalize_onboarding(
         }
         Err(e) => return handle_failure(&app_handle, "Securing credential", e, &artifacts).await,
     }
-
-    // Step 2: Save Locked Apps
     emit_finalize_progress(&app_handle, "Saving apps", "in_progress");
     let apps_res = match save_locked_apps(payload.locked_apps) {
         Ok(res) => {
@@ -151,8 +122,6 @@ pub async fn finalize_onboarding(
         }
         Err(e) => return handle_failure(&app_handle, "Saving apps", e, &artifacts).await,
     };
-
-    // Step 3: Save Initial Settings
     emit_finalize_progress(&app_handle, "Saving settings", "in_progress");
     match save_initial_settings(payload.settings.clone()) {
         Ok(_) => {
@@ -161,8 +130,6 @@ pub async fn finalize_onboarding(
         }
         Err(e) => return handle_failure(&app_handle, "Saving settings", e, &artifacts).await,
     }
-
-    // Step 4: Register Autostart (Non-fatal)
     emit_finalize_progress(&app_handle, "Registering autostart", "in_progress");
     let exe_path = std::env::current_exe()
         .map_err(|e| e.to_string())?
@@ -183,8 +150,6 @@ pub async fn finalize_onboarding(
             emit_finalize_progress(&app_handle, "Registering autostart", "done");
         }
     }
-
-    // Step 5: Finalize Onboarding Flag (Commit Point)
     emit_finalize_progress(&app_handle, "Finalizing", "in_progress");
     match mark_onboarding_complete() {
         Ok(_) => {
@@ -192,8 +157,6 @@ pub async fn finalize_onboarding(
         }
         Err(e) => return handle_failure(&app_handle, "Finalizing", e, &artifacts).await,
     }
-
-    // Success
     let result = FinalizeResult {
         success: true,
         step_failed: None,
@@ -210,8 +173,6 @@ pub async fn finalize_onboarding(
     
     Ok(result)
 }
-
-/// Handles failure by performing rollback and emitting failure event.
 async fn handle_failure(
     app: &AppHandle,
     step: &str,
@@ -237,15 +198,9 @@ async fn handle_failure(
         stale_apps: 0,
     })
 }
-
-/// Emits progress updates to the frontend.
 fn emit_finalize_progress(app: &AppHandle, step: &str, status: &str) {
     let _ = app.emit("onboarding_step_progress", serde_json::json!({ "step": step, "status": status }));
 }
-
-// --- Internal Logic (matching requested signatures exactly) ---
-
-/// Hashes the credential and stores it in an encrypted file.
 fn store_credential(raw: &str, cred_type: CredentialType) -> Result<(), FinalizeError> {
     let base_dir = get_fallback_config_dir();
     let salt = SaltString::generate(&mut OsRng);
@@ -268,8 +223,6 @@ fn store_credential(raw: &str, cred_type: CredentialType) -> Result<(), Finalize
     atomic_write(&path, &encrypted)
         .map_err(|e| FinalizeError::CredentialWriteFailed(e.to_string()))
 }
-
-/// Validates and saves the list of locked applications.
 fn save_locked_apps(apps: Vec<OnboardingAppEntry>) -> Result<SavedAppsResult, FinalizeError> {
     let base_dir = get_fallback_config_dir();
     let mut saved = 0;
@@ -301,11 +254,8 @@ fn save_locked_apps(apps: Vec<OnboardingAppEntry>) -> Result<SavedAppsResult, Fi
 
     Ok(SavedAppsResult { saved, stale })
 }
-
-/// Validates and saves initial application settings.
 fn save_initial_settings(settings: OnboardingSettings) -> Result<(), FinalizeError> {
     let base_dir = get_fallback_config_dir();
-    // Validation logic
     if settings.app_grace_secs > 3600 {
         return Err(FinalizeError::SettingsValidationFailed { 
             field: "app_grace_secs".into(), 
@@ -326,8 +276,6 @@ fn save_initial_settings(settings: OnboardingSettings) -> Result<(), FinalizeErr
     atomic_write(&path, &data)
         .map_err(|e| FinalizeError::SettingsWriteFailed(e.to_string()))
 }
-
-/// Registers the application for automatic startup on Windows.
 fn maybe_register_autostart(enabled: bool, exe_path: &str) -> Result<(), FinalizeError> {
     if !enabled { return Ok(()); }
     
@@ -339,8 +287,6 @@ fn maybe_register_autostart(enabled: bool, exe_path: &str) -> Result<(), Finaliz
     key.set_value("AppLock", &format!("\"{}\" --boot-launch", exe_path))
         .map_err(|e| FinalizeError::AutostartFailed(e.to_string()))
 }
-
-/// Finalizes the onboarding by setting the completion flag in the settings file.
 fn mark_onboarding_complete() -> Result<(), FinalizeError> {
     let base_dir = get_fallback_config_dir();
     let path = base_dir.join("settings.json");
@@ -358,8 +304,6 @@ fn mark_onboarding_complete() -> Result<(), FinalizeError> {
     atomic_write(&path, &data)
         .map_err(|e| FinalizeError::OnboardingFlagFailed(e.to_string()))
 }
-
-/// Deletes all artifacts created during the failed finalization process.
 fn rollback_finalization(artifacts: &FinalizeArtifacts) -> Result<(), FinalizeError> {
     let base_dir = get_fallback_config_dir();
     let mut errors = Vec::new();
@@ -394,10 +338,6 @@ fn rollback_finalization(artifacts: &FinalizeArtifacts) -> Result<(), FinalizeEr
         Err(FinalizeError::RollbackFailed(errors.join("; ")))
     }
 }
-
-// --- Helpers ---
-
-/// Fallback helper to get config directory when AppHandle is not directly available to deep functions.
 fn get_fallback_config_dir() -> PathBuf {
     let app_data = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
     let path = PathBuf::from(app_data).join("com.windows-applock.app");
@@ -406,16 +346,12 @@ fn get_fallback_config_dir() -> PathBuf {
     }
     path
 }
-
-/// Writes data to a temporary file then renames it to ensure atomicity.
 fn atomic_write<P: AsRef<Path>>(path: P, data: &[u8]) -> std::io::Result<()> {
     let path = path.as_ref();
     let tmp_path = path.with_extension("tmp");
     fs::write(&tmp_path, data)?;
     fs::rename(tmp_path, path)
 }
-
-/// Encrypts data using AES-GCM with a random nonce.
 fn encrypt_data(data: &[u8], key_str: &str) -> Result<Vec<u8>, String> {
     let mut hasher = Sha256::new();
     hasher.update(key_str.as_bytes());

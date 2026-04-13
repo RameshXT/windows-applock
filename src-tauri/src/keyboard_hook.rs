@@ -7,8 +7,6 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{VK_TAB, VK_LWIN, VK_RWIN};
 use crate::window_manager::WindowError;
 
 pub static mut HOOK_HANDLE: Option<HHOOK> = None;
-
-/// Install low-level keyboard hook to intercept Alt+Tab and Win+D.
 pub fn install_keyboard_hook() -> Result<HHOOK, WindowError> {
     unsafe {
         let hook = SetWindowsHookExW(
@@ -22,8 +20,6 @@ pub fn install_keyboard_hook() -> Result<HHOOK, WindowError> {
         Ok(hook)
     }
 }
-
-/// Uninstall the keyboard hook.
 pub fn uninstall_keyboard_hook(hook: HHOOK) -> Result<(), WindowError> {
     unsafe {
         if UnhookWindowsHookEx(hook).is_ok() {
@@ -34,20 +30,14 @@ pub fn uninstall_keyboard_hook(hook: HHOOK) -> Result<(), WindowError> {
         }
     }
 }
-
-/// Low-level keyboard hook callback.
 unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if code >= 0 {
         let kbd = *(lparam.0 as *const KBDLLHOOKSTRUCT);
         let key = kbd.vkCode as u16;
-        
-        // Detect Alt+Tab (Alt is held when WM_SYSKEYDOWN is sent)
         let is_alt = (kbd.flags.0 & 0x20) != 0; // LLKHF_ALTDOWN
         if is_alt && key == VK_TAB.0 {
             return LRESULT(1);
         }
-        
-        // Detect Win+D
         static mut WIN_PRESSED: bool = false;
         if key == VK_LWIN.0 || key == VK_RWIN.0 {
             if wparam.0 == WM_KEYDOWN as usize || wparam.0 == WM_SYSKEYDOWN as usize {

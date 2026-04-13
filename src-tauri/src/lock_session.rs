@@ -7,10 +7,10 @@ use std::sync::{Arc, RwLock};
 pub struct LockedAppEntry {
     pub id: String,
     pub name: String,
-    pub executable_path: String,      // normalized lowercase canonical path
-    pub executable_name: String,      // just the .exe filename
-    pub is_uwp: bool,                 // Microsoft Store app flag
-    pub package_family_name: String,  // UWP package identifier if is_uwp
+    pub executable_path: String,     
+    pub executable_name: String,      
+    pub is_uwp: bool,                 
+    pub package_family_name: String,  
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -25,9 +25,9 @@ use crate::window_manager::WindowSnapshot;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MonitorInfo {
-    pub handle: isize,                    // HMONITOR
-    pub work_area: Rect,                  // usable area excluding taskbar
-    pub full_rect: Rect,                  // full monitor bounds
+    pub handle: isize,                    
+    pub work_area: Rect,                  
+    pub full_rect: Rect,                  
     pub is_primary: bool,
     pub dpi: u32,
 }
@@ -35,7 +35,7 @@ pub struct MonitorInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum FreezeResult {
     Success,
-    PartialSuccess { reason: String }, // window hidden but not suspended
+    PartialSuccess { reason: String }, 
     Failed { reason: String },
 }
 
@@ -83,10 +83,10 @@ pub enum LockEngineError {
 }
 
 pub struct LockSessionManager {
-    pub active_sessions: Arc<RwLock<HashMap<u32, ActiveLockSession>>>, // Key is primary PID
+    pub active_sessions: Arc<RwLock<HashMap<u32, ActiveLockSession>>>, 
     pub locked_apps: Arc<RwLock<Vec<LockedAppEntry>>>,
     pub watcher_state: Arc<RwLock<WatcherState>>,
-    pub relaunch_watch: Arc<RwLock<HashMap<String, (u32, DateTime<Utc>)>>>, // path -> (count, last_time)
+    pub relaunch_watch: Arc<RwLock<HashMap<String, (u32, DateTime<Utc>)>>>, 
     pub rehider_tasks: Arc<RwLock<HashMap<u32, tokio::task::JoinHandle<()>>>>,
     pub overlay_tasks: Arc<RwLock<HashMap<u32, tokio::task::JoinHandle<()>>>>,
 }
@@ -109,7 +109,6 @@ impl LockSessionManager {
     }
 
     pub fn remove_session(&self, pid: u32) -> Option<ActiveLockSession> {
-        // Stop tasks
         if let Ok(mut tasks) = self.rehider_tasks.write() {
             if let Some(task) = tasks.remove(&pid) {
                 task.abort();

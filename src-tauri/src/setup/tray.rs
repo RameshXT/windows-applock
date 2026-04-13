@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use tauri::{App, Manager};
 use crate::models::AppState;
-
-/// Builds and registers the system tray icon and menu.
 pub fn setup_tray(app: &mut App, _state: Arc<AppState>) -> Result<(), Box<dyn std::error::Error>> {
     let quit_i = tauri::menu::MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let show_i = tauri::menu::MenuItem::with_id(app, "show", "Show App", true, None::<&str>)?;

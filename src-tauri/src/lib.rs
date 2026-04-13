@@ -83,19 +83,11 @@ pub fn run() {
             app.manage(grace_store.clone());
 
             app.manage(state.clone());
-
-            // Delegate setup to dedicated modules
             let _ = setup::shortcut::register_shortcuts(app, state.clone());
             let _ = setup::tray::setup_tray(app, state.clone());
             let _ = setup::window::setup_window(app, state.clone());
-
-            // Initialize rehash status check on boot
             credential_manager::initialize_rehash_status(&app.handle());
-
-            // Start system event watcher for grace period resets
             system_event_watcher::start_system_event_watcher(app.handle().clone());
-
-            // Start the App Lock Engine background tasks
             let watcher_app_handle = app.handle().clone();
             let watcher_session_manager = session_manager.clone();
             tauri::async_runtime::spawn(async move {
@@ -146,26 +138,21 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
-            // Auth domain
             commands::auth::check_setup,
             commands::auth::setup_password,
             commands::auth::verify_password,
             commands::auth::verify_gatekeeper,
             commands::auth::lock_session,
             commands::auth::get_is_unlocked,
-            // Apps domain
             commands::apps::get_apps,
             commands::apps::get_system_apps,
             commands::apps::get_detailed_apps,
             commands::apps::save_selection,
-            // Config domain
             commands::config::get_config,
             commands::config::update_settings,
             commands::config::reset_app,
-            // System domain
             commands::system::get_blocked_app,
             commands::system::release_app,
-            // Credential domain
             commands::credentials::set_credential,
             credential_verifier::verify_credential,
             commands::credentials::update_credential,
@@ -173,17 +160,14 @@ pub fn run() {
             commands::credentials::check_rehash_needed,
             credential_verifier::get_lockout_status,
             credential_verifier::clear_lockout_admin,
-            // Storage domain
             commands::storage::verify_storage_integrity,
             commands::storage::get_storage_status,
-            // Scanner domain
             commands::scanner::start_app_scan,
             commands::scanner::get_scan_results,
             commands::scanner::get_scan_status,
             commands::scanner::refresh_scan,
             commands::scanner::start_file_watcher,
             commands::scanner::stop_file_watcher,
-            // Watcher domain
             commands::watcher::start_watcher,
             commands::watcher::stop_watcher,
             commands::watcher::pause_watcher,
@@ -192,8 +176,6 @@ pub fn run() {
             commands::watcher::get_active_lock_sessions,
             commands::watcher::unlock_app,
             commands::watcher::add_portable_app,
-
-            // Grace Period domain
             grace_manager::check_grace_session,
             grace_manager::get_all_grace_sessions,
             grace_manager::re_lock_app,
@@ -202,16 +184,12 @@ pub fn run() {
             grace_manager::update_grace_settings,
             grace_manager::set_max_security_mode,
             grace_manager::get_max_security_mode,
-
-            // Window Management domain
             window_manager::freeze_target_window,
             window_manager::assert_overlay_topmost,
             window_manager::get_target_monitor_bounds,
             window_manager::restore_locked_window,
             window_manager::install_hook,
             window_manager::uninstall_hook,
-
-            // Settings Management domain
             settings_manager::set_autostart,
             settings_manager::set_minimize_to_tray,
             settings_manager::set_dashboard_lock,
@@ -223,9 +201,7 @@ pub fn run() {
             settings_manager::get_settings_change_log,
             settings_manager::export_settings,
             settings_manager::import_settings,
-            // Onboarding domain
             onboarding_finalizer::finalize_onboarding,
-            // Recovery domain
             recovery_manager::get_hard_lock_status,
             recovery_manager::get_new_recovery_key,
             recovery_manager::verify_recovery_key,

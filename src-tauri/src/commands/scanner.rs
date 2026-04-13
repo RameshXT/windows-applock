@@ -14,7 +14,6 @@ pub async fn get_scan_results(app_handle: AppHandle) -> Result<Vec<app_scanner::
 
 #[tauri::command]
 pub async fn get_scan_status() -> Result<app_scanner::ScanStatus, String> {
-    // For simplicity, we can keep track in a static or just return Idle if not implemented fully
     Ok(app_scanner::ScanStatus::Idle)
 }
 

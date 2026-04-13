@@ -40,15 +40,12 @@ impl ProcessWatcher {
 
             for (pid, process) in sys.processes() {
                 let pid_u32 = pid.as_u32();
-                
-                // Skip if already locked
                 if self.session_manager.active_sessions.read().unwrap().contains_key(&pid_u32) {
                     continue;
                 }
 
                 let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
                 if let Some(locked_app) = self.session_manager.is_app_locked(&exe_path) {
-                    // Feature 62: Skip lock prompt if within grace period
                     let grace_store = self.app_handle.state::<Arc<tokio::sync::RwLock<crate::grace_manager::GraceSessionStore>>>();
                     let grace_result = crate::grace_manager::check_grace_session_internal(&locked_app.id, &grace_store).await;
                     
@@ -61,8 +58,6 @@ impl ProcessWatcher {
                         
                         continue;
                     }
-
-                    // Feature 38: Relaunch loop detection
                     {
                         let mut relaunch_watch = self.session_manager.relaunch_watch.write().unwrap();
                         let (count, last_time) = relaunch_watch.entry(exe_path.clone()).or_insert((0, Utc::now()));
@@ -105,7 +100,6 @@ impl ProcessWatcher {
         let mut snapshots = Vec::new();
         for hwnd in &hwnds {
             if let Ok(_) = window_manager::freeze_window_logic(*hwnd, &state, &self.app_handle) {
-                // If we also want them in the session object:
                 if let Ok(snap) = window_manager::snapshot_window_state(*hwnd) {
                     snapshots.push(snap);
                 }

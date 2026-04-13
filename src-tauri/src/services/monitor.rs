@@ -8,22 +8,15 @@ use crate::services::process_win::{get_processes, kill_process, get_foreground_p
 pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
     loop {
         let now = std::time::Instant::now();
-
-        // 1. Session Safety Checks
         let (grace_duration, auto_lock_mins, notifications_on) = {
             let cfg = state.config.lock().unwrap();
             (cfg.grace_period.unwrap_or(0) as u64, cfg.auto_lock_duration.unwrap_or(0) as u64, cfg.notifications_enabled.unwrap_or(true))
         };
-
-        // 2. Safety Fuse & Grace Period
-        // If we just had a successful unlock, bypass everything for the grace period (min 5s)
         let mut is_grace_active = false;
         {
             let last_success = state.last_success_time.lock().unwrap();
             if let Some(time) = *last_success {
                 let diff = now.duration_since(time);
-                
-                // Handle Session Auto-Lock (if enabled)
                 if auto_lock_mins > 0 && diff > Duration::from_secs(auto_lock_mins * 60) {
                      let mut unlocked = state.is_unlocked.lock().unwrap();
                      if *unlocked {
@@ -45,8 +38,6 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
             sleep(Duration::from_millis(500)).await;
             continue;
         }
-
-        // 3. Clean up expired authorizations
         {
             let mut auth_paths = state.authorized_paths.lock().unwrap();
             auth_paths.retain(|_, expiry| *expiry > now);
@@ -88,8 +79,6 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
             for process in &processes {
                 let pid = process.pid;
                 let proc_path_lower = process.path.to_lowercase();
-                
-                // Identify if this process matches the target app
                 let mut is_match = proc_path_lower == target_path;
                 if !is_match {
                     let proc_name = process.name.to_lowercase();
@@ -97,7 +86,6 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
                 }
 
                 if is_match {
-                    // Check authorizations
                     let is_pid_authorized = state.authorized_pids.lock().unwrap().contains(&pid);
                     let is_path_authorized = {
                         let auth_paths = state.authorized_paths.lock().unwrap();
@@ -110,8 +98,6 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
                         }
                         continue;
                     }
-
-                    // Not authorized - kill it immediately
                     unauthorized_pids.push(pid);
                 }
             }
@@ -121,22 +107,17 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
                 if let Some(fp) = processes.iter().find(|p| p.pid == foreground_pid) {
                     let fp_path = fp.path.to_lowercase();
                     let fp_name = fp.name.to_lowercase();
-                    
-                    // Match 1: Exact path match
                     if fp_path == target_path {
                         is_app_in_foreground = true;
                     }
-                    // Match 2: Filename match
                     else if fp_name == target_filename || fp_name == target_filename_no_exe {
                         is_app_in_foreground = true;
                     }
-                    // Match 3: Directory heuristic (catch UI helpers/launchers in the same folder)
                     else {
                         let target_dir = std::path::Path::new(&target_path).parent();
                         let fp_dir = std::path::Path::new(&fp_path).parent();
                         
                         if let (Some(td), Some(fd)) = (target_dir, fp_dir) {
-                            // Only match directories if they are deep enough (to avoid matching C:\Program Files)
                             let td_str = td.to_string_lossy().to_lowercase();
                             let fd_str = fd.to_string_lossy().to_lowercase();
                             if td_str == fd_str && td_str.len() > 15 {
@@ -144,10 +125,6 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
                             }
                         }
                     }
-
-                    // Special case: UWP apps (ApplicationFrameHost.exe)
-                    // If the foreground is the Frame Host, we have to trust our unauthorized_pids list
-                    // because getting the 'real' PID from a frame host is expensive/complex.
                     if !is_app_in_foreground && fp_name == "applicationframehost.exe" {
                         is_app_in_foreground = unauthorized_pids.len() > 0;
                     }
@@ -155,17 +132,12 @@ pub async fn start_monitor(app_handle: AppHandle, state: Arc<AppState>) {
             }
 
             if !unauthorized_pids.is_empty() && is_app_in_foreground {
-                // Kill all found instances
                 for pid in &unauthorized_pids {
                     let _ = kill_process(*pid);
                 }
-
-                // Manage Gatekeeper UI state
                 let already_active = {
                     let mut active = state.active_blocked_app.lock().unwrap();
                     let is_same = active.as_ref().map(|a| a.id == app.id).unwrap_or(false);
-                    
-                    // Notifications logic (if enabled)
                     if !is_same && notifications_on {
                         use tauri_plugin_notification::NotificationExt;
                         let _ = app_handle.notification()
