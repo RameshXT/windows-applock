@@ -6,4 +6,3 @@ pub mod credentials;
 pub mod storage;
 pub mod scanner;
 pub mod watcher;
-pub mod window_management;

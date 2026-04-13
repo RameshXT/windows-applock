@@ -1,8 +1,9 @@
-use std::sync::Mutex;
+use std::sync::{Mutex, Arc, RwLock};
 use std::path::PathBuf;
 use std::collections::{HashSet, HashMap};
 use std::time::Instant;
 use crate::models::config::{AppConfig, LockedApp};
+use crate::window_manager::{WindowSnapshot, SendHhook};
 
 use crate::rate_limiter::{RateLimitState, DebounceState};
 
@@ -20,4 +21,7 @@ pub struct AppState {
     pub was_maximized: Mutex<bool>,
     pub rate_limit_state: Mutex<RateLimitState>,
     pub debounce_state: Mutex<DebounceState>,
+    pub window_snapshots: Arc<RwLock<HashMap<isize, WindowSnapshot>>>,
+    pub keyboard_hook: Arc<Mutex<Option<SendHhook>>>,
 }
+

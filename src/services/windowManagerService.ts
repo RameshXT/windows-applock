@@ -1,125 +1,118 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { listen } from "@tauri-apps/api/event";
 
-export interface Rect {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
+export interface MonitorBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
-export interface MonitorInfo {
-  handle: number;
-  work_area: Rect;
-  full_rect: Rect;
-  is_primary: boolean;
-  dpi: number;
-}
-
-export interface WindowSnapshotView {
-  app_id: string;
-  process_id: number;
-  original_x: number;
-  original_y: number;
-  original_width: number;
-  original_height: number;
+export interface WindowSnapshot {
+  hwnd: number;
   was_fullscreen: boolean;
+  placement: SerializablePlacement;
+  extended_style: number;
 }
 
-export interface KillProtectionStatus {
-  enabled: boolean;
-  method: "dacl" | "watchdog" | "none";
+export interface SerializablePlacement {
+  show_cmd: number;
+  pt_min_position_x: number;
+  pt_min_position_y: number;
+  pt_max_position_x: number;
+  pt_max_position_y: number;
+  rc_normal_position_left: number;
+  rc_normal_position_top: number;
+  rc_normal_position_right: number;
+  rc_normal_position_bottom: number;
 }
-
-export type FreezeResult = 
-  | { Success: null }
-  | { PartialSuccess: { reason: string } }
-  | { Failed: { reason: string } };
 
 export class WindowManagerService {
   /**
-   * Freeze a target application's windows.
+   * Freeze target app window immediately on detection.
    */
-  static async freezeAppWindow(processId: number, appId: string): Promise<FreezeResult> {
-    return await invoke("freeze_app_window", { processId, appId });
+  static async freezeTargetWindow(hwnd: number): Promise<void> {
+    return await invoke("freeze_target_window", { hwnd });
   }
 
   /**
-   * Restore a target application's windows.
+   * Bring lock overlay to foreground (always on top).
    */
-  static async restoreAppWindow(processId: number): Promise<boolean> {
-    return await invoke("restore_app_window", { processId });
+  static async assertOverlayTopmost(): Promise<void> {
+    return await invoke("assert_overlay_topmost");
   }
 
   /**
-   * Get the current monitor layout.
+   * Get monitor bounds for a target application window.
    */
-  static async getMonitorLayout(): Promise<MonitorInfo[]> {
-    return await invoke("get_monitor_layout");
+  static async getTargetMonitorBounds(hwnd: number): Promise<MonitorBounds> {
+    return await invoke("get_target_monitor_bounds", { hwnd });
   }
 
   /**
-   * Get a snapshot of a locked window.
+   * Restore app to original state after unlock.
    */
-  static async getWindowSnapshot(appId: string): Promise<WindowSnapshotView> {
-    return await invoke("get_window_snapshot", { appId });
+  static async restoreLockedWindow(hwnd: number): Promise<void> {
+    return await invoke("restore_locked_window", { hwnd });
   }
 
   /**
-   * Get the status of kill protection.
+   * Listen for window frozen event.
    */
-  static async getKillProtectionStatus(): Promise<KillProtectionStatus> {
-    return await invoke("get_kill_protection_status");
+  static onWindowFrozen(callback: (payload: { hwnd: number }) => void) {
+    return listen<{ hwnd: number }>("window_frozen", (event) => {
+      callback(event.payload);
+    });
   }
 
   /**
-   * Start the low-level keyboard hook.
+   * Listen for overlay asserted topmost event.
    */
-  static async startInputBlocker(): Promise<void> {
-    return await invoke("start_input_blocker");
+  static onOverlayAssertedTopmost(callback: () => void) {
+    return listen("overlay_asserted_topmost", () => {
+      callback();
+    });
   }
 
   /**
-   * Stop the low-level keyboard hook.
+   * Listen for window restored event.
    */
-  static async stopInputBlocker(): Promise<void> {
-    return await invoke("stop_input_blocker");
+  static onWindowRestored(callback: (payload: { hwnd: number; was_fullscreen: boolean }) => void) {
+    return listen<{ hwnd: number; was_fullscreen: boolean }>("window_restored", (event) => {
+      callback(event.payload);
+    });
   }
 
   /**
-   * Reposition the overlay to a specific monitor.
+   * Listen for keyboard hook events.
    */
-  static async repositionOverlay(monitorHandle: number): Promise<void> {
-    return await invoke("reposition_overlay", { monitorHandle });
+  static onKeyboardHookInstalled(callback: () => void) {
+    return listen("keyboard_hook_installed", () => {
+      callback();
+    });
   }
 
-  // Event listeners
-
-  static async onWindowFrozen(callback: (payload: any) => void): Promise<UnlistenFn> {
-    return await listen("window_frozen", (event) => callback(event.payload));
+  static onKeyboardHookRemoved(callback: () => void) {
+    return listen("keyboard_hook_removed", () => {
+      callback();
+    });
   }
 
-  static async onAppRestored(callback: (payload: any) => void): Promise<UnlistenFn> {
-    return await listen("app_restored", (event) => callback(event.payload));
+  /**
+   * Listen for process protection event.
+   */
+  static onProcessProtectionSet(callback: (payload: { elevated: boolean }) => void) {
+    return listen<{ elevated: boolean }>("process_protection_set", (event) => {
+      callback(event.payload);
+    });
   }
 
-  static async onLockOverlayPositioned(callback: (payload: any) => void): Promise<UnlistenFn> {
-    return await listen("lock_overlay_positioned", (event) => callback(event.payload));
-  }
-
-  static async onBypassAttemptBlocked(callback: (payload: any) => void): Promise<UnlistenFn> {
-    return await listen("bypass_attempt_blocked", (event) => callback(event.payload));
-  }
-
-  static async onFullscreenAppLocked(callback: (payload: any) => void): Promise<UnlistenFn> {
-    return await listen("fullscreen_app_locked", (event) => callback(event.payload));
-  }
-
-  static async onAppExitedDuringLock(callback: (payload: any) => void): Promise<UnlistenFn> {
-    return await listen("app_exited_during_lock", (event) => callback(event.payload));
-  }
-
-  static async onMonitorConfigChanged(callback: (payload: any) => void): Promise<UnlistenFn> {
-    return await listen("monitor_config_changed", (event) => callback(event.payload));
+  /**
+   * Listen for full-screen app detection.
+   */
+  static onFullscreenAppDetected(callback: (payload: { hwnd: number }) => void) {
+    return listen<{ hwnd: number }>("fullscreen_app_detected", (event) => {
+      callback(event.payload);
+    });
   }
 }

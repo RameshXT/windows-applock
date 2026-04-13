@@ -12,6 +12,7 @@ pub mod file_watcher;
 pub mod lock_session;
 pub mod process_watcher;
 pub mod window_manager;
+pub mod keyboard_hook;
 pub mod uwp_handler;
 pub mod watcher_supervisor;
 pub mod rate_limiter;
@@ -24,7 +25,8 @@ pub mod input_blocker;
 pub mod process_guard;
 pub mod fullscreen_handler;
 
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex, RwLock};
 use std::fs;
 use tauri::Manager;
 use crate::models::AppState;
@@ -33,7 +35,6 @@ use crate::lock_session::LockSessionManager;
 use crate::process_watcher::ProcessWatcher;
 use crate::watcher_supervisor::WatcherSupervisor;
 use crate::grace_manager::GraceSessionStore;
-use tokio::sync::RwLock;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -62,20 +63,22 @@ pub fn run() {
                 was_maximized: Mutex::new(true),
                 rate_limit_state: Mutex::new(credential_verifier::load_lockout_state(&app.handle()).unwrap_or_default()),
                 debounce_state: Mutex::new(rate_limiter::DebounceState::default()),
+                window_snapshots: Arc::new(RwLock::new(HashMap::new())),
+                keyboard_hook: Arc::new(Mutex::new(None)),
             });
 
             let session_manager = Arc::new(LockSessionManager::new());
             app.manage(session_manager.clone());
 
-            let grace_store = Arc::new(RwLock::new(GraceSessionStore::new()));
+            let grace_store = Arc::new(tokio::sync::RwLock::new(GraceSessionStore::new()));
             app.manage(grace_store.clone());
 
             app.manage(state.clone());
 
             // Delegate setup to dedicated modules
-            setup::shortcut::register_shortcuts(app, state.clone())?;
-            setup::tray::setup_tray(app, state.clone())?;
-            setup::window::setup_window(app, state.clone())?;
+            let _ = setup::shortcut::register_shortcuts(app, state.clone());
+            let _ = setup::tray::setup_tray(app, state.clone());
+            let _ = setup::window::setup_window(app, state.clone());
 
             // Initialize rehash status check on boot
             credential_manager::initialize_rehash_status(&app.handle());
@@ -192,14 +195,12 @@ pub fn run() {
             grace_manager::get_max_security_mode,
 
             // Window Management domain
-            commands::window_management::freeze_app_window,
-            commands::window_management::restore_app_window,
-            commands::window_management::get_monitor_layout,
-            commands::window_management::get_window_snapshot,
-            commands::window_management::get_kill_protection_status,
-            commands::window_management::start_input_blocker,
-            commands::window_management::stop_input_blocker,
-            commands::window_management::reposition_overlay,
+            window_manager::freeze_target_window,
+            window_manager::assert_overlay_topmost,
+            window_manager::get_target_monitor_bounds,
+            window_manager::restore_locked_window,
+            window_manager::install_hook,
+            window_manager::uninstall_hook,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

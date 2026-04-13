@@ -45,14 +45,20 @@ pub fn get_active_lock_sessions(session_manager: State<'_, Arc<LockSessionManage
 pub async fn unlock_app(
     app_handle: AppHandle,
     process_id: u32,
-    session_manager: State<'_, Arc<LockSessionManager>>
+    session_manager: State<'_, Arc<LockSessionManager>>,
+    state: State<'_, Arc<crate::models::AppState>>,
 ) -> Result<(), String> {
-    // Forward to the new restoration logic
-    crate::commands::window_management::restore_app_window(
-        app_handle.clone(),
-        session_manager,
-        process_id
-    ).await.map(|_| ())?;
+    let session = session_manager.remove_session(process_id);
+    
+    if let Some(session) = session {
+        for snapshot in session.snapshots {
+            let _ = crate::window_manager::restore_locked_window(
+                state.clone(),
+                app_handle.clone(),
+                snapshot.hwnd
+            ).await;
+        }
+    }
 
     app_handle.emit("app_unlocked", serde_json::json!({
         "process_id": process_id

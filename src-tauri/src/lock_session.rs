@@ -21,21 +21,7 @@ pub struct Rect {
     pub bottom: i32,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct WindowSnapshot {
-    pub app_id: String,
-    pub process_id: u32,
-    pub hwnd: isize,                      // HWND as isize
-    pub original_x: i32,                  // position before freeze
-    pub original_y: i32,
-    pub original_width: i32,
-    pub original_height: i32,
-    pub original_show_state: u32,         // SW_NORMAL | SW_MAXIMIZE | SW_MINIMIZE
-    pub was_fullscreen: bool,
-    pub monitor_handle: isize,            // HMONITOR as isize — which screen it was on
-    pub was_topmost: bool,                // WS_EX_TOPMOST flag state
-    pub child_windows: Vec<isize>,        // all child HWNDs
-}
+use crate::window_manager::WindowSnapshot;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MonitorInfo {

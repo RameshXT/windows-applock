@@ -99,17 +99,16 @@ impl ProcessWatcher {
             })).unwrap();
         }
 
-        // We use the window management commands/logic for freezing
-        // For simplicity, let's just emit the event and let the frontend/commands handle it,
-        // OR we apply it here directly and add to session manager.
-        
-        // Let's apply standard freeze logic here
         let hwnds = window_manager::get_process_windows(pid);
+        let state = self.app_handle.state::<Arc<crate::models::AppState>>();
+        
         let mut snapshots = Vec::new();
         for hwnd in &hwnds {
-            if let Ok(snap) = window_manager::take_window_snapshot(*hwnd, pid, &app.id) {
-                let _ = window_manager::hide_window(*hwnd);
-                snapshots.push(snap);
+            if let Ok(_) = window_manager::freeze_window_logic(*hwnd, &state, &self.app_handle) {
+                // If we also want them in the session object:
+                if let Ok(snap) = window_manager::snapshot_window_state(*hwnd) {
+                    snapshots.push(snap);
+                }
             }
         }
 
