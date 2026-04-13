@@ -6,6 +6,9 @@ pub mod setup;
 pub mod credential_manager;
 pub mod crypto;
 pub mod secure_storage;
+pub mod app_scanner;
+pub mod icon_extractor;
+pub mod file_watcher;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
@@ -121,6 +124,13 @@ pub fn run() {
             // Storage domain
             commands::storage::verify_storage_integrity,
             commands::storage::get_storage_status,
+            // Scanner domain
+            commands::scanner::start_app_scan,
+            commands::scanner::get_scan_results,
+            commands::scanner::get_scan_status,
+            commands::scanner::refresh_scan,
+            commands::scanner::start_file_watcher,
+            commands::scanner::stop_file_watcher,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
