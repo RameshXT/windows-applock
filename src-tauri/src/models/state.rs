@@ -4,6 +4,8 @@ use std::collections::{HashSet, HashMap};
 use std::time::Instant;
 use crate::models::config::{AppConfig, LockedApp};
 
+use crate::rate_limiter::{RateLimitState, DebounceState};
+
 /// Shared application runtime state managed by Tauri's state manager.
 pub struct AppState {
     pub config: Mutex<AppConfig>,
@@ -16,4 +18,6 @@ pub struct AppState {
     pub active_blocked_app: Mutex<Option<LockedApp>>,
     pub min_window_size: Mutex<(u32, u32)>,
     pub was_maximized: Mutex<bool>,
+    pub rate_limit_state: Mutex<RateLimitState>,
+    pub debounce_state: Mutex<DebounceState>,
 }

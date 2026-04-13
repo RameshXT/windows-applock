@@ -6,10 +6,6 @@ pub async fn set_credential(app_handle: AppHandle, pin_or_password: String, cred
     credential_manager::set_credential_internal(&app_handle, pin_or_password, cred_type)
 }
 
-#[tauri::command]
-pub async fn verify_credential(app_handle: AppHandle, input: String) -> Result<bool, String> {
-    credential_manager::verify_credential_internal(&app_handle, input)
-}
 
 #[tauri::command]
 pub async fn update_credential(

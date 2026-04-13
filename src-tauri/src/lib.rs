@@ -14,6 +14,9 @@ pub mod process_watcher;
 pub mod window_manager;
 pub mod uwp_handler;
 pub mod watcher_supervisor;
+pub mod rate_limiter;
+pub mod verify_logger;
+pub mod credential_verifier;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
@@ -49,6 +52,8 @@ pub fn run() {
                 active_blocked_app: Mutex::new(None),
                 min_window_size: Mutex::new((800, 600)),
                 was_maximized: Mutex::new(true),
+                rate_limit_state: Mutex::new(credential_verifier::load_lockout_state(&app.handle()).unwrap_or_default()),
+                debounce_state: Mutex::new(rate_limiter::DebounceState::default()),
             });
 
             let session_manager = Arc::new(LockSessionManager::new());
@@ -136,10 +141,12 @@ pub fn run() {
             commands::system::release_app,
             // Credential domain
             commands::credentials::set_credential,
-            commands::credentials::verify_credential,
+            credential_verifier::verify_credential,
             commands::credentials::update_credential,
             commands::credentials::get_credential_type,
             commands::credentials::check_rehash_needed,
+            credential_verifier::get_lockout_status,
+            credential_verifier::clear_lockout_admin,
             // Storage domain
             commands::storage::verify_storage_integrity,
             commands::storage::get_storage_status,
