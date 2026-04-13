@@ -1,12 +1,12 @@
 use crate::rate_limiter::{RateLimitState, VerifyContext, check_rate_limit, update_lockout_state, apply_debounce, RateLimitDecision};
 use crate::verify_logger::{record_attempt, VerifyAttempt, VerifyFailReason};
 use crate::secure_storage::{read_encrypted_internal, write_encrypted_internal};
-use crate::models::state::AppState;
+use crate::models::state::{AppState, HardLockState};
 use argon2::{Argon2, password_hash::PasswordHash, password_hash::PasswordVerifier};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, State, Emitter};
 use tokio::time::{timeout, Duration};
 
 const CREDENTIALS_FILE: &str = "credentials.enc";
@@ -52,7 +52,18 @@ pub async fn verify_credential(
     let verify_context = VerifyContext::from_str(&context)
         .ok_or_else(|| "Verification failed".to_string())?;
 
-    // 2. Debounce rapid calls (checked BEFORE argon2)
+    // 2. Hard lock check
+    let target_app_id = app_id.clone().unwrap_or_else(|| "dashboard_lock".to_string());
+    {
+        let hard_locks = state.hard_locks.lock().unwrap();
+        if let Some(lock) = hard_locks.get(&target_app_id) {
+            if lock.locked {
+                return Err("hard_locked".to_string());
+            }
+        }
+    }
+
+    // 3. Debounce rapid calls (checked BEFORE argon2)
     {
         let mut debounce = state.debounce_state.lock().unwrap();
         if apply_debounce(verify_context, &mut debounce) {
@@ -130,6 +141,22 @@ pub async fn verify_credential(
         let mut rl = state.rate_limit_state.lock().unwrap();
         update_lockout_state(success, &mut rl);
         let _ = persist_lockout_state(&app_handle, &rl);
+        
+        if rl.consecutive_failures >= 10 {
+            let mut hard_locks = state.hard_locks.lock().unwrap();
+            let lock_state = HardLockState {
+                locked: true,
+                locked_at: Some(Utc::now()),
+                app_id: target_app_id.clone(),
+            };
+            hard_locks.insert(target_app_id.clone(), lock_state);
+            
+            let _ = app_handle.emit("hard_lock_active", serde_json::json!({
+                "app_id": target_app_id,
+                "locked_at": Utc::now().to_rfc3339()
+            }));
+        }
+        
         rl.consecutive_failures
     };
 

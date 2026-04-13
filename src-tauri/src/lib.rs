@@ -26,6 +26,7 @@ pub mod process_guard;
 pub mod fullscreen_handler;
 pub mod settings_manager;
 pub mod onboarding_finalizer;
+pub mod recovery_manager;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -70,6 +71,9 @@ pub fn run() {
                 keyboard_hook: Arc::new(Mutex::new(None)),
                 settings_log: Mutex::new(Vec::new()),
                 session_token: Mutex::new(None),
+                hard_locks: Mutex::new(HashMap::new()),
+                recovery_fail_counter: Mutex::new(HashMap::new()),
+                reset_tokens: Mutex::new(HashMap::new()),
             });
 
             let session_manager = Arc::new(LockSessionManager::new());
@@ -221,6 +225,13 @@ pub fn run() {
             settings_manager::import_settings,
             // Onboarding domain
             onboarding_finalizer::finalize_onboarding,
+            // Recovery domain
+            recovery_manager::get_hard_lock_status,
+            recovery_manager::get_new_recovery_key,
+            recovery_manager::verify_recovery_key,
+            recovery_manager::initiate_full_reset,
+            recovery_manager::perform_full_reset,
+            recovery_manager::store_recovery_key_hash,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

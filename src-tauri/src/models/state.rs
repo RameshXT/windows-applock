@@ -2,10 +2,21 @@ use std::sync::{Mutex, Arc, RwLock};
 use std::path::PathBuf;
 use std::collections::{HashSet, HashMap};
 use std::time::Instant;
+use serde::{Serialize, Deserialize};
 use crate::models::config::{AppConfig, LockedApp};
 use crate::window_manager::{WindowSnapshot, SendHhook};
 
 use crate::rate_limiter::{RateLimitState, DebounceState};
+
+use chrono::{DateTime, Utc};
+
+/// Hard lock state for an application or the dashboard.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HardLockState {
+    pub locked: bool,
+    pub locked_at: Option<DateTime<Utc>>,
+    pub app_id: String,
+}
 
 /// Shared application runtime state managed by Tauri's state manager.
 pub struct AppState {
@@ -25,4 +36,7 @@ pub struct AppState {
     pub keyboard_hook: Arc<Mutex<Option<SendHhook>>>,
     pub settings_log: Mutex<Vec<serde_json::Value>>,
     pub session_token: Mutex<Option<String>>,
+    pub hard_locks: Mutex<HashMap<String, HardLockState>>,
+    pub recovery_fail_counter: Mutex<HashMap<String, (u32, Option<DateTime<Utc>>)>>,
+    pub reset_tokens: Mutex<HashMap<String, DateTime<Utc>>>,
 }
