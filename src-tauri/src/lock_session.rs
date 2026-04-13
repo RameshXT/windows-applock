@@ -14,15 +14,56 @@ pub struct LockedAppEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Rect {
+    pub left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WindowSnapshot {
+    pub app_id: String,
+    pub process_id: u32,
+    pub hwnd: isize,                      // HWND as isize
+    pub original_x: i32,                  // position before freeze
+    pub original_y: i32,
+    pub original_width: i32,
+    pub original_height: i32,
+    pub original_show_state: u32,         // SW_NORMAL | SW_MAXIMIZE | SW_MINIMIZE
+    pub was_fullscreen: bool,
+    pub monitor_handle: isize,            // HMONITOR as isize — which screen it was on
+    pub was_topmost: bool,                // WS_EX_TOPMOST flag state
+    pub child_windows: Vec<isize>,        // all child HWNDs
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MonitorInfo {
+    pub handle: isize,                    // HMONITOR
+    pub work_area: Rect,                  // usable area excluding taskbar
+    pub full_rect: Rect,                  // full monitor bounds
+    pub is_primary: bool,
+    pub dpi: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum FreezeResult {
+    Success,
+    PartialSuccess { reason: String }, // window hidden but not suspended
+    Failed { reason: String },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ActiveLockSession {
     pub app_id: String,
     pub process_id: u32,
-    pub window_handles: Vec<isize>,    // HWNDs as isize
+    pub snapshots: Vec<WindowSnapshot>,
     pub detected_at: DateTime<Utc>,
     pub freeze_applied: bool,
     pub lock_shown: bool,
     pub child_pids: Vec<u32>,
     pub relaunch_count: u32,
+    pub monitor_info: Option<MonitorInfo>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq)]
@@ -60,6 +101,8 @@ pub struct LockSessionManager {
     pub locked_apps: Arc<RwLock<Vec<LockedAppEntry>>>,
     pub watcher_state: Arc<RwLock<WatcherState>>,
     pub relaunch_watch: Arc<RwLock<HashMap<String, (u32, DateTime<Utc>)>>>, // path -> (count, last_time)
+    pub rehider_tasks: Arc<RwLock<HashMap<u32, tokio::task::JoinHandle<()>>>>,
+    pub overlay_tasks: Arc<RwLock<HashMap<u32, tokio::task::JoinHandle<()>>>>,
 }
 
 impl LockSessionManager {
@@ -69,6 +112,8 @@ impl LockSessionManager {
             locked_apps: Arc::new(RwLock::new(Vec::new())),
             watcher_state: Arc::new(RwLock::new(WatcherState::Paused)),
             relaunch_watch: Arc::new(RwLock::new(HashMap::new())),
+            rehider_tasks: Arc::new(RwLock::new(HashMap::new())),
+            overlay_tasks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -78,6 +123,18 @@ impl LockSessionManager {
     }
 
     pub fn remove_session(&self, pid: u32) -> Option<ActiveLockSession> {
+        // Stop tasks
+        if let Ok(mut tasks) = self.rehider_tasks.write() {
+            if let Some(task) = tasks.remove(&pid) {
+                task.abort();
+            }
+        }
+        if let Ok(mut tasks) = self.overlay_tasks.write() {
+            if let Some(task) = tasks.remove(&pid) {
+                task.abort();
+            }
+        }
+
         let mut sessions = self.active_sessions.write().unwrap();
         sessions.remove(&pid)
     }

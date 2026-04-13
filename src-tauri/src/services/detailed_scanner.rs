@@ -270,7 +270,7 @@ fn extract_exe_icon(path: &str) -> Option<String> {
     use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICONINFO};
     use windows::Win32::Graphics::Gdi::{
         GetDIBits, CreateCompatibleDC, DeleteDC, DeleteObject,
-        BITMAPINFOHEADER, BITMAPINFO, DIB_RGB_COLORS, BI_RGB,
+        BITMAPINFOHEADER, BITMAPINFO, DIB_RGB_COLORS, BI_RGB, HGDIOBJ,
     };
     use windows::core::PCWSTR;
     use std::ffi::OsStr;
@@ -309,8 +309,8 @@ fn extract_exe_icon(path: &str) -> Option<String> {
             GetDIBits(hdc, icon_info.hbmColor, 0, 32, Some(pixels.as_mut_ptr() as *mut _), &mut bmi, DIB_RGB_COLORS)
         };
         unsafe { let _ = DeleteDC(hdc); };
-        unsafe { let _ = DeleteObject(icon_info.hbmColor); };
-        unsafe { let _ = DeleteObject(icon_info.hbmMask); };
+        unsafe { let _ = DeleteObject(HGDIOBJ(icon_info.hbmColor.0)); };
+        unsafe { let _ = DeleteObject(HGDIOBJ(icon_info.hbmMask.0)); };
         if lines == 0 { return None; }
         for chunk in pixels.chunks_exact_mut(4) { chunk.swap(0, 2); }
         let img = image::RgbaImage::from_raw(32, 32, pixels)?;

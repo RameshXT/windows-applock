@@ -1,8 +1,6 @@
 use tauri::{AppHandle, State, Emitter};
 use crate::lock_session::{LockSessionManager, WatcherState, ActiveLockSession, LockedAppEntry};
-use crate::window_manager;
 use std::sync::Arc;
-use windows::Win32::Foundation::HWND;
 
 #[tauri::command]
 pub async fn start_watcher(_app_handle: AppHandle, session_manager: State<'_, Arc<LockSessionManager>>) -> Result<(), String> {
@@ -14,7 +12,7 @@ pub async fn start_watcher(_app_handle: AppHandle, session_manager: State<'_, Ar
 #[tauri::command]
 pub fn stop_watcher(session_manager: State<'_, Arc<LockSessionManager>>) -> Result<(), String> {
     let mut state = session_manager.watcher_state.write().unwrap();
-    *state = WatcherState::Paused; // Or Stopped
+    *state = WatcherState::Paused;
     Ok(())
 }
 
@@ -49,23 +47,14 @@ pub async fn unlock_app(
     process_id: u32,
     session_manager: State<'_, Arc<LockSessionManager>>
 ) -> Result<(), String> {
-    let session = session_manager.remove_session(process_id)
-        .ok_or_else(|| "No active session for this PID".to_string())?;
-
-    // Resume process
-    unsafe {
-        if let Err(e) = window_manager::resume_process(process_id) {
-            return Err(format!("Failed to resume process: {}", e));
-        }
-
-        let hwnds: Vec<HWND> = session.window_handles.iter().map(|&h| HWND(h as _)).collect();
-        if let Err(e) = window_manager::restore_windows(&hwnds) {
-            println!("Failed to restore windows: {}", e);
-        }
-    }
+    // Forward to the new restoration logic
+    crate::commands::window_management::restore_app_window(
+        app_handle.clone(),
+        session_manager,
+        process_id
+    ).await.map(|_| ())?;
 
     app_handle.emit("app_unlocked", serde_json::json!({
-        "app_id": session.app_id,
         "process_id": process_id
     })).unwrap();
 

@@ -19,6 +19,10 @@ pub mod verify_logger;
 pub mod credential_verifier;
 pub mod grace_manager;
 pub mod system_event_watcher;
+pub mod overlay_manager;
+pub mod input_blocker;
+pub mod process_guard;
+pub mod fullscreen_handler;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
@@ -186,6 +190,16 @@ pub fn run() {
             grace_manager::update_grace_settings,
             grace_manager::set_max_security_mode,
             grace_manager::get_max_security_mode,
+
+            // Window Management domain
+            commands::window_management::freeze_app_window,
+            commands::window_management::restore_app_window,
+            commands::window_management::get_monitor_layout,
+            commands::window_management::get_window_snapshot,
+            commands::window_management::get_kill_protection_status,
+            commands::window_management::start_input_blocker,
+            commands::window_management::stop_input_blocker,
+            commands::window_management::reposition_overlay,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

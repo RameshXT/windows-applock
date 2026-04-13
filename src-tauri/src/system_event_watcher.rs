@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tauri::{AppHandle, Manager, Emitter};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HINSTANCE};
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW, 
     CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, WINDOW_EX_STYLE, WINDOW_STYLE, 
@@ -27,14 +27,15 @@ pub fn start_system_event_watcher(app_handle: AppHandle) {
         APP_HANDLE = Some(app_handle.clone());
     }
 
-    // Use a background thread for the Windows message loop
     std::thread::spawn(move || {
         unsafe {
             let class_name = "AppLockSystemEventWatcher\0".encode_utf16().collect::<Vec<u16>>();
+            let instance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap_or_default();
+            
             let wnd_class = WNDCLASSW {
                 style: CS_HREDRAW | CS_VREDRAW,
                 lpfnWndProc: Some(wnd_proc),
-                hInstance: windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap_or_default().into(),
+                hInstance: HINSTANCE(instance.0),
                 lpszClassName: PCWSTR(class_name.as_ptr()),
                 ..Default::default()
             };
@@ -50,9 +51,9 @@ pub fn start_system_event_watcher(app_handle: AppHandle) {
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
                 CW_USEDEFAULT,
-                HWND_MESSAGE, 
+                Some(HWND_MESSAGE), 
                 None,
-                wnd_class.hInstance,
+                Some(wnd_class.hInstance),
                 None,
             );
 
@@ -64,7 +65,6 @@ pub fn start_system_event_watcher(app_handle: AppHandle) {
                 }
             };
 
-            // Register for session notifications (lock/unlock/user switch)
             if let Err(e) = WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION) {
                  eprintln!("Failed to register session notification: {}", e);
             }
@@ -76,14 +76,13 @@ pub fn start_system_event_watcher(app_handle: AppHandle) {
         }
     });
 
-    // Start a periodic check for screensaver using Tauri's async runtime
     let app_handle_clone = app_handle.clone();
     tauri::async_runtime::spawn(async move {
         let mut ticker = tokio::time::interval(std::time::Duration::from_secs(5));
         loop {
             ticker.tick().await;
             unsafe {
-                let mut is_running: windows::Win32::Foundation::BOOL = false.into();
+                let mut is_running: windows::core::BOOL = false.into();
                 let spi_res = windows::Win32::UI::WindowsAndMessaging::SystemParametersInfoW(
                     windows::Win32::UI::WindowsAndMessaging::SPI_GETSCREENSAVERRUNNING,
                     0,
@@ -118,7 +117,6 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 }
 
 unsafe fn handle_session_change(event: u32) {
-    // Accessing APP_HANDLE safely using raw pointers to satisfy newer Rust edition requirements
     let app_handle = if let Some(h) = (&raw const APP_HANDLE).as_ref().and_then(|h| h.as_ref()) { h } else { return };
     let store = app_handle.state::<Arc<RwLock<GraceSessionStore>>>();
     

@@ -59,7 +59,6 @@ impl ProcessWatcher {
                             "seconds_remaining": seconds_remaining
                         })).unwrap();
                         
-                        // Log bypass (logic should be added to logger)
                         continue;
                     }
 
@@ -78,7 +77,7 @@ impl ProcessWatcher {
                                 })).unwrap();
                             }
                         } else {
-                            *count = 1; // Reset if outside 10s window
+                            *count = 1;
                         }
                         *last_time = Utc::now();
                     }
@@ -90,15 +89,7 @@ impl ProcessWatcher {
         }
     }
 
-    pub fn start_wmi_watcher(&self) {
-        // Feature 34: WMI subscription trace
-        println!("Starting WMI event subscription for instant detection...");
-        // Real implementation would use IWbemServices::ExecNotificationQueryAsync
-        // For this task, we've implemented the 500ms baseline which is robust.
-    }
-
     async fn trigger_lock(&self, pid: u32, app: LockedAppEntry) {
-        // Check elevation
         if is_process_elevated(pid) {
             println!("Elevated app detected: {}", app.name);
             self.app_handle.emit("elevated_app_detected", serde_json::json!({
@@ -108,38 +99,42 @@ impl ProcessWatcher {
             })).unwrap();
         }
 
-        // Emit show_lock_overlay
+        // We use the window management commands/logic for freezing
+        // For simplicity, let's just emit the event and let the frontend/commands handle it,
+        // OR we apply it here directly and add to session manager.
+        
+        // Let's apply standard freeze logic here
+        let hwnds = window_manager::get_process_windows(pid);
+        let mut snapshots = Vec::new();
+        for hwnd in &hwnds {
+            if let Ok(snap) = window_manager::take_window_snapshot(*hwnd, pid, &app.id) {
+                let _ = window_manager::hide_window(*hwnd);
+                snapshots.push(snap);
+            }
+        }
+
+        let _ = window_manager::suspend_process(pid);
+
+        let session = ActiveLockSession {
+            app_id: app.id.clone(),
+            process_id: pid,
+            snapshots,
+            detected_at: Utc::now(),
+            freeze_applied: true,
+            lock_shown: true,
+            child_pids: Vec::new(),
+            relaunch_count: 0,
+            monitor_info: None, // Will be updated by overlay_manager if needed
+        };
+
+        self.session_manager.add_session(session);
+
         self.app_handle.emit("show_lock_overlay", serde_json::json!({
             "app_id": app.id,
             "app_name": app.name,
             "process_id": pid,
             "is_uwp": app.is_uwp
         })).unwrap();
-
-        // Feature 35/37: Freeze + Minimize
-        let mut hwnds = Vec::new();
-        if let Ok(windows) = window_manager::get_process_windows(pid) {
-            hwnds = windows.iter().map(|h| h.0 as isize).collect();
-        }
-
-        unsafe {
-            if let Err(e) = window_manager::freeze_process_windows(pid) {
-                println!("Freeze failure: {}", e);
-            }
-        }
-
-        let session = ActiveLockSession {
-            app_id: app.id,
-            process_id: pid,
-            window_handles: hwnds,
-            detected_at: Utc::now(),
-            freeze_applied: true,
-            lock_shown: true,
-            child_pids: Vec::new(),
-            relaunch_count: 0,
-        };
-
-        self.session_manager.add_session(session);
     }
 }
 
@@ -153,7 +148,7 @@ fn is_process_elevated(pid: u32) -> bool {
             Err(_) => return false,
         };
 
-        let mut token: HANDLE = HANDLE(ptr::null_mut());
+        let mut token: HANDLE = HANDLE::default();
         if OpenProcessToken(handle, TOKEN_QUERY, &mut token).is_err() {
             let _ = CloseHandle(handle);
             return false;
@@ -176,4 +171,4 @@ fn is_process_elevated(pid: u32) -> bool {
         success && elevation.TokenIsElevated != 0
     }
 }
-use std::ptr;
+
