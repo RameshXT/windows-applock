@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, Download, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Copy, Download, Eye, CheckCircle } from 'lucide-react';
 
 interface RecoveryKeyDisplayProps {
   recoveryKey: string;

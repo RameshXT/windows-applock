@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Lock, AlertCircle, Key, Info } from 'lucide-react';
 import { RecoveryKeyInput } from './RecoveryKeyInput';
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, RefreshCw } from 'lucide-react';
-import { recoveryService, RecoveryResult } from '../../services/recoveryService';
+import { recoveryService } from '../../services/recoveryService';
 
 interface RecoveryKeyInputProps {
   appId: string;

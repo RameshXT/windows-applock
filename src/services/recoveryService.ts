@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 export interface HardLockStatus {
-  is_locked: bool;
+  is_locked: boolean;
   locked_at: string | null;
   app_id: string;
 }
