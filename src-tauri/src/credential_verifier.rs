@@ -1,5 +1,5 @@
 use crate::rate_limiter::{RateLimitState, VerifyContext, check_rate_limit, update_lockout_state, apply_debounce, RateLimitDecision};
-use crate::verify_logger::{record_attempt, VerifyLogEntry, VerifyFailReason};
+use crate::verify_logger::{record_attempt, VerifyAttempt, VerifyFailReason};
 use crate::secure_storage::{read_encrypted_internal, write_encrypted_internal};
 use crate::models::state::AppState;
 use argon2::{Argon2, password_hash::PasswordHash, password_hash::PasswordVerifier};
@@ -64,7 +64,11 @@ pub async fn verify_credential(
     let rate_limit_reason = {
         let mut rl = state.rate_limit_state.lock().unwrap();
         match check_rate_limit(&mut rl) {
-            RateLimitDecision::Allowed => None,
+            RateLimitDecision::Allowed => {
+                // Requirement 48: Sliding window tracks ALL verification attempts
+                crate::rate_limiter::record_attempt_timestamp(&mut rl);
+                None
+            },
             RateLimitDecision::RateLimited => Some(VerifyFailReason::RateLimited),
             RateLimitDecision::LockedOut(_) => Some(VerifyFailReason::RateLimited),
         }
@@ -72,7 +76,7 @@ pub async fn verify_credential(
 
     if let Some(reason) = rate_limit_reason {
         let rl_state = state.rate_limit_state.lock().unwrap();
-        let _ = record_attempt(&app_handle, VerifyLogEntry {
+        let _ = record_attempt(&app_handle, VerifyAttempt {
             timestamp: Utc::now(),
             success: false,
             context: verify_context,
@@ -83,14 +87,15 @@ pub async fn verify_credential(
             was_debounced: false,
             verification_duration_ms: 0,
         });
+        // Requirement 46: generic error string
         return Err("Verification failed".to_string());
     }
 
-    // 4. Sanitize input
+    // 4. Sanitize input (trim, length check, no null bytes)
     let sanitized = input.trim();
     if sanitized.is_empty() || sanitized.len() > 128 || sanitized.contains('\0') {
         let rl_state = state.rate_limit_state.lock().unwrap();
-        let _ = record_attempt(&app_handle, VerifyLogEntry {
+        let _ = record_attempt(&app_handle, VerifyAttempt {
             timestamp: Utc::now(),
             success: false,
             context: verify_context,
@@ -104,7 +109,7 @@ pub async fn verify_credential(
         return Err("Verification failed".to_string());
     }
 
-    // 5. Run verification (spawn_blocking with timeout)
+    // 5. Run verification (spawn_blocking with timeout of 2 seconds)
     let start_time = Utc::now();
     let verify_future = verify_internal(&app_handle, sanitized);
     let result = timeout(Duration::from_secs(2), verify_future).await;
@@ -119,7 +124,7 @@ pub async fn verify_credential(
 
     let duration_ms = (Utc::now() - start_time).num_milliseconds().max(0) as u64;
 
-    // 6. Update and persist rate limit state
+    // 6. Update and persist rate limit state (survives app restart)
     let attempt_number = {
         let mut rl = state.rate_limit_state.lock().unwrap();
         update_lockout_state(success, &mut rl);
@@ -127,8 +132,8 @@ pub async fn verify_credential(
         rl.consecutive_failures
     };
 
-    // 7. Log the attempt
-    let _ = record_attempt(&app_handle, VerifyLogEntry {
+    // 7. Log every verification attempt with full context
+    let _ = record_attempt(&app_handle, VerifyAttempt {
         timestamp: Utc::now(),
         success,
         context: verify_context,
@@ -143,6 +148,7 @@ pub async fn verify_credential(
     if success {
         Ok(VerifyResult { success: true })
     } else {
+        // Requirement 46: generic error string
         Err("Verification failed".to_string())
     }
 }

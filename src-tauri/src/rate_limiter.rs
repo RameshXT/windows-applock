@@ -69,6 +69,7 @@ pub enum RateLimitDecision {
 }
 
 /// Check if a call should be debounced based on the context.
+/// Minimum 500ms for AppLock, 1000ms for DashboardLock.
 pub fn apply_debounce(context: VerifyContext, state: &mut DebounceState) -> bool {
     let now = Instant::now();
     let min_interval = match context {
@@ -88,6 +89,7 @@ pub fn apply_debounce(context: VerifyContext, state: &mut DebounceState) -> bool
 }
 
 /// Check rate limit and lockout status.
+/// Implements a sliding window of max 5 attempts per 30 seconds.
 pub fn check_rate_limit(state: &mut RateLimitState) -> RateLimitDecision {
     let now = Utc::now();
 
@@ -101,11 +103,11 @@ pub fn check_rate_limit(state: &mut RateLimitState) -> RateLimitDecision {
                 // Lockout expired
                 state.is_locked_out = false;
                 state.lockout_until = None;
-                // We DON'T reset consecutive_failures here, it only resets on success
+                // Note: consecutive_failures is NOT reset here, only on success.
             }
         } else {
-            // Should not happen if is_locked_out is true, but handle it
-            state.is_locked_out = false;
+            // Hard lock (lockout_until is None)
+            return RateLimitDecision::LockedOut(0);
         }
     }
 
@@ -117,10 +119,18 @@ pub fn check_rate_limit(state: &mut RateLimitState) -> RateLimitDecision {
         return RateLimitDecision::RateLimited;
     }
 
+    // Note: We don't push the timestamp here yet, 
+    // we do it in record_attempt_timestamp to ensure ONLY allowed calls count.
     RateLimitDecision::Allowed
 }
 
+/// Records the timestamp of a permitted verification attempt.
+pub fn record_attempt_timestamp(state: &mut RateLimitState) {
+    state.attempt_timestamps.push(Utc::now());
+}
+
 /// Update lockout state based on verification result.
+/// Implements tiered cooldown durations.
 pub fn update_lockout_state(success: bool, state: &mut RateLimitState) {
     let now = Utc::now();
 
@@ -130,18 +140,23 @@ pub fn update_lockout_state(success: bool, state: &mut RateLimitState) {
         state.lockout_until = None;
     } else {
         state.consecutive_failures += 1;
-        state.attempt_timestamps.push(now);
 
-        // Tiered lockout logic
+        // Tiered lockout logic:
+        // 3 failures  -> 30s
+        // 5 failures  -> 5m
+        // 10 failures -> 30m
+        // 15 failures -> hard lock
         let cooldown = match state.consecutive_failures {
-            3 => Some(Duration::seconds(30)),
-            5 => Some(Duration::minutes(5)),
-            10 => Some(Duration::minutes(30)),
-            15.. => None, // Hard lock (None means indefinite/require recovery in this context)
-            _ => None,
+            0..=2 => None,
+            3..=4 => Some(Duration::seconds(30)),
+            5..=9 => Some(Duration::minutes(5)),
+            10..=14 => Some(Duration::minutes(30)),
+            _ => None, // Hard lock handled below
         };
 
         if let Some(duration) = cooldown {
+            // Only update if we aren't already in a stricter lockout
+            // (though consecutive_failures increment should handle this naturally)
             state.is_locked_out = true;
             state.lockout_until = Some(now + duration);
         } else if state.consecutive_failures >= 15 {

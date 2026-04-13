@@ -17,7 +17,7 @@ pub enum VerifyFailReason {
 
 /// A single entry in the verification audit log.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct VerifyLogEntry {
+pub struct VerifyAttempt {
     pub timestamp: DateTime<Utc>,
     pub success: bool,
     pub context: VerifyContext,
@@ -33,9 +33,9 @@ const LOGS_FILE: &str = "logs.enc";
 
 /// Record a verification attempt to the secure audit log.
 /// Implements log rotation to keep only the last 1000 entries.
-pub fn record_attempt(app_handle: &AppHandle, entry: VerifyLogEntry) -> Result<(), String> {
+pub fn record_attempt(app_handle: &AppHandle, entry: VerifyAttempt) -> Result<(), String> {
     // Load existing logs (ignore error if file doesn't exist, we'll start a new list)
-    let mut logs: Vec<VerifyLogEntry> = match read_encrypted_internal(app_handle, LOGS_FILE) {
+    let mut logs: Vec<VerifyAttempt> = match read_encrypted_internal(app_handle, LOGS_FILE) {
         Ok(l) => l,
         Err(_) => Vec::new(),
     };
