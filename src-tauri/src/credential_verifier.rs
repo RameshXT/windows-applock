@@ -137,7 +137,7 @@ pub async fn verify_credential(
         timestamp: Utc::now(),
         success,
         context: verify_context,
-        app_id,
+        app_id: app_id.clone(),
         failure_reason: fail_reason,
         attempt_number,
         was_rate_limited: false,
@@ -146,6 +146,21 @@ pub async fn verify_credential(
     });
 
     if success {
+        if let Some(id) = &app_id {
+            let app_name = {
+                let config = state.config.lock().unwrap();
+                config.locked_apps.iter()
+                    .find(|a| &a.id == id)
+                    .map(|a| a.name.clone())
+                    .unwrap_or_else(|| "Unknown App".to_string())
+            };
+            
+            let handle = app_handle.clone();
+            let id_clone = id.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = crate::grace_manager::start_grace_session(&id_clone, &app_name, handle).await;
+            });
+        }
         Ok(VerifyResult { success: true })
     } else {
         // Requirement 46: generic error string

@@ -43,6 +43,8 @@ windows = { version = "0.58", features = [
     "Foundation_Collections",
     "ApplicationModel",
     "Win32_UI_Shell",
+    "Win32_System_RemoteDesktop",
+    "Win32_System_Power",
     "Win32_UI_WindowsAndMessaging",
     "Win32_Graphics_Gdi",
     "Win32_Storage_FileSystem",
@@ -54,6 +56,8 @@ windows = { version = "0.58", features = [
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Com",
     "Win32_System_JobObjects",
+    "Win32_System_SystemInformation",
+    "Win32_System_LibraryLoader",
 ] }
 image = { version = "0.25", features = ["png"] }
 machine-uid = "0.3"

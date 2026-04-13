@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 use sysinfo::System;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use crate::lock_session::{LockSessionManager, ActiveLockSession, LockedAppEntry, WatcherState};
 use crate::window_manager;
 use crate::uwp_handler::UwpHandler;
@@ -48,6 +48,21 @@ impl ProcessWatcher {
 
                 let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
                 if let Some(locked_app) = self.session_manager.is_app_locked(&exe_path) {
+                    // Feature 62: Skip lock prompt if within grace period
+                    let grace_store = self.app_handle.state::<Arc<tokio::sync::RwLock<crate::grace_manager::GraceSessionStore>>>();
+                    let grace_result = crate::grace_manager::check_grace_session_internal(&locked_app.id, &grace_store).await;
+                    
+                    if let crate::grace_manager::GraceCheckResult::Active { seconds_remaining } = grace_result {
+                        self.app_handle.emit("grace_bypass_used", serde_json::json!({
+                            "app_id": locked_app.id,
+                            "app_name": locked_app.name,
+                            "seconds_remaining": seconds_remaining
+                        })).unwrap();
+                        
+                        // Log bypass (logic should be added to logger)
+                        continue;
+                    }
+
                     // Feature 38: Relaunch loop detection
                     {
                         let mut relaunch_watch = self.session_manager.relaunch_watch.write().unwrap();

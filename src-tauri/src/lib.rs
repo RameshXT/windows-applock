@@ -17,6 +17,8 @@ pub mod watcher_supervisor;
 pub mod rate_limiter;
 pub mod verify_logger;
 pub mod credential_verifier;
+pub mod grace_manager;
+pub mod system_event_watcher;
 
 use std::sync::{Arc, Mutex};
 use std::fs;
@@ -26,6 +28,8 @@ use crate::utils::config::load_config;
 use crate::lock_session::LockSessionManager;
 use crate::process_watcher::ProcessWatcher;
 use crate::watcher_supervisor::WatcherSupervisor;
+use crate::grace_manager::GraceSessionStore;
+use tokio::sync::RwLock;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -59,6 +63,9 @@ pub fn run() {
             let session_manager = Arc::new(LockSessionManager::new());
             app.manage(session_manager.clone());
 
+            let grace_store = Arc::new(RwLock::new(GraceSessionStore::new()));
+            app.manage(grace_store.clone());
+
             app.manage(state.clone());
 
             // Delegate setup to dedicated modules
@@ -68,6 +75,9 @@ pub fn run() {
 
             // Initialize rehash status check on boot
             credential_manager::initialize_rehash_status(&app.handle());
+
+            // Start system event watcher for grace period resets
+            system_event_watcher::start_system_event_watcher(app.handle().clone());
 
             // Start the App Lock Engine background tasks
             let watcher_app_handle = app.handle().clone();
@@ -166,6 +176,16 @@ pub fn run() {
             commands::watcher::get_active_lock_sessions,
             commands::watcher::unlock_app,
             commands::watcher::add_portable_app,
+
+            // Grace Period domain
+            grace_manager::check_grace_session,
+            grace_manager::get_all_grace_sessions,
+            grace_manager::re_lock_app,
+            grace_manager::re_lock_all,
+            grace_manager::get_grace_settings,
+            grace_manager::update_grace_settings,
+            grace_manager::set_max_security_mode,
+            grace_manager::get_max_security_mode,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

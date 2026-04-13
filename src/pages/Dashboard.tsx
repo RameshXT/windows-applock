@@ -21,6 +21,7 @@ import styles from "../styles/App.module.css";
 import logo from "../assets/logo.png";
 import { Tab, InstalledApp, LockedApp, AppConfig, AuthMode } from "../types";
 import { SettingsPage } from "../components/settings/settings";
+import { GraceSessionPanel } from "../components/dashboard/GraceSessionPanel";
 
 interface DashboardProps {
   appName: string;
@@ -390,6 +391,7 @@ export const Dashboard = ({
             transition={{ duration: 0.4 }}
             className={styles.appListWrapper}
           >
+            {activeTab === "system" && <GraceSessionPanel />}
             {isScanning ? (
               <div className={styles.emptyState}>
                 <div className={styles.premiumLoader}>
