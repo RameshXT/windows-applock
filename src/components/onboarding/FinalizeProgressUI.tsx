@@ -31,11 +31,12 @@ const STEPS: StepState[] = [
 export const FinalizeProgressUI: React.FC<FinalizeProgressUIProps> = ({ payload, onSuccess, onCancel }) => {
   const [steps, setSteps] = useState<StepState[]>(STEPS);
   const [error, setError] = useState<{ step: string; reason: string; rollback_ok: boolean } | null>(null);
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   useEffect(() => {
-    let unlistenProgress: () => void;
-    let unlistenComplete: () => void;
-    let unlistenFailure: () => void;
+    let unlistenProgress: any;
+    let unlistenComplete: any;
+    let unlistenFailure: any;
 
     const setupListeners = async () => {
       unlistenProgress = await onboardingFinalizerService.onProgress((p: OnboardingStepProgress) => {
@@ -65,14 +66,16 @@ export const FinalizeProgressUI: React.FC<FinalizeProgressUIProps> = ({ payload,
   }, []);
 
   const startFinalization = async () => {
+    if (isFinalizing) return;
     setError(null);
-    setSteps(STEPS);
+    setSteps(STEPS.map(s => ({ ...s, status: "pending" })));
     setIsFinalizing(true);
     try {
       await onboardingFinalizerService.finalize(payload);
     } catch (e: any) {
       console.error("Invocation error:", e);
       setError({ step: "System", reason: "Failed to communicate with the secure engine.", rollback_ok: true });
+      setIsFinalizing(false);
     }
   };
 
