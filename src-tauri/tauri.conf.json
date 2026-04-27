@@ -39,5 +39,13 @@
         "installerIcon": "icons/icon.ico"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/RameshXT/AppLock/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW51c2VkX3BsYWNlaG9sZGVyX3B1YmtleV9mb3JfZGV2ZWxvcG1lbnRfMTIzNDU2Nzg5MA=="
+    }
   }
 }

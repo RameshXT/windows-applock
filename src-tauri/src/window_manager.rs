@@ -1,33 +1,26 @@
-use serde::{Serialize, Deserialize};
-use windows::Win32::Foundation::{HWND, RECT, POINT, LPARAM, HANDLE};
+use serde::{Deserialize, Serialize};
 use windows::core::BOOL;
-use windows::Win32::UI::WindowsAndMessaging::{
-    ShowWindow, SW_MINIMIZE, GetWindowLongPtrW, SetWindowLongPtrW,
-    GWL_EXSTYLE, WS_EX_TOOLWINDOW, WS_EX_APPWINDOW, GetWindowPlacement,
-    SetWindowPlacement, WINDOWPLACEMENT, GetWindowRect, SetWindowPos,
-    HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SWP_FRAMECHANGED,
-    SetForegroundWindow, BringWindowToTop, EnumWindows, GetWindowThreadProcessId,
-    HHOOK,
-};
-use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
+use windows::Win32::Foundation::{HANDLE, HWND, LPARAM, POINT, RECT};
 use windows::Win32::Graphics::Gdi::{
-    MonitorFromWindow, MONITOR_DEFAULTTONEAREST, GetMonitorInfoW, MONITORINFO,
+    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
 };
-use windows::Win32::System::Threading::{
-    GetCurrentProcess, OpenProcessToken,
-};
+use windows::Win32::Security::Authorization::{SetSecurityInfo, SE_KERNEL_OBJECT};
 use windows::Win32::Security::{
-    TOKEN_QUERY, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, SE_PRIVILEGE_ENABLED,
-    AdjustTokenPrivileges, LUID_AND_ATTRIBUTES, LookupPrivilegeValueW,
-    DACL_SECURITY_INFORMATION,
+    AdjustTokenPrivileges, LookupPrivilegeValueW, DACL_SECURITY_INFORMATION, LUID_AND_ATTRIBUTES,
+    SE_PRIVILEGE_ENABLED, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES, TOKEN_QUERY,
 };
-use windows::Win32::Security::Authorization::{
-    SetSecurityInfo, SE_KERNEL_OBJECT,
+use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
+use windows::Win32::UI::WindowsAndMessaging::{
+    BringWindowToTop, EnumWindows, GetWindowLongPtrW, GetWindowPlacement, GetWindowRect,
+    GetWindowThreadProcessId, SetForegroundWindow, SetWindowLongPtrW, SetWindowPlacement,
+    SetWindowPos, ShowWindow, GWL_EXSTYLE, HHOOK, HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_SHOWWINDOW, SW_MINIMIZE, WINDOWPLACEMENT, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
-use std::sync::Arc;
-use tauri::{AppHandle, Manager, Emitter, State};
 use crate::models::AppState;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MonitorBounds {
@@ -77,24 +70,34 @@ impl From<windows::core::Error> for WindowError {
 pub fn freeze_target_window(
     state: State<'_, Arc<AppState>>,
     app_handle: AppHandle,
-    hwnd: isize
+    hwnd: isize,
 ) -> Result<(), String> {
     freeze_window_logic(HWND(hwnd as _), &state, &app_handle).map_err(|e| format!("{:?}", e))
 }
-pub fn freeze_window_logic(hwnd: HWND, state: &AppState, app_handle: &AppHandle) -> Result<(), WindowError> {
+pub fn freeze_window_logic(
+    hwnd: HWND,
+    state: &AppState,
+    app_handle: &AppHandle,
+) -> Result<(), WindowError> {
     unsafe {
         if hwnd.0.is_null() {
             return Err(WindowError::InvalidHwnd);
         }
         if let Ok(snapshot) = snapshot_window_state(hwnd) {
-            let mut snapshots = state.window_snapshots.write().map_err(|_| WindowError::SnapshotFailed)?;
+            let mut snapshots = state
+                .window_snapshots
+                .write()
+                .map_err(|_| WindowError::SnapshotFailed)?;
             snapshots.insert(hwnd.0 as isize, snapshot);
         }
         let _ = hide_from_alt_tab(hwnd);
         let _ = ShowWindow(hwnd, SW_MINIMIZE);
         let _ = EnableWindow(hwnd, false);
-        
-        let _ = app_handle.emit("window_frozen", serde_json::json!({ "hwnd": hwnd.0 as isize }));
+
+        let _ = app_handle.emit(
+            "window_frozen",
+            serde_json::json!({ "hwnd": hwnd.0 as isize }),
+        );
         Ok(())
     }
 }
@@ -106,8 +109,11 @@ pub fn assert_overlay_topmost(app: AppHandle) -> Result<(), String> {
             let _ = SetWindowPos(
                 hwnd,
                 Some(HWND_TOPMOST),
-                0, 0, 0, 0,
-                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW,
             );
             let _ = SetForegroundWindow(hwnd);
             let _ = BringWindowToTop(hwnd);
@@ -127,7 +133,7 @@ pub fn get_target_monitor_bounds(hwnd: isize) -> Result<MonitorBounds, String> {
             cbSize: std::mem::size_of::<MONITORINFO>() as u32,
             ..Default::default()
         };
-        
+
         if GetMonitorInfoW(monitor, &mut info).as_bool() {
             Ok(MonitorBounds {
                 x: info.rcMonitor.left,
@@ -147,19 +153,22 @@ pub async fn restore_locked_window(
     hwnd: isize,
 ) -> Result<(), String> {
     let h_wnd = HWND(hwnd as _);
-    
+
     let snapshot = {
         let snapshots = state.window_snapshots.read().map_err(|e| e.to_string())?;
         snapshots.get(&hwnd).cloned()
     };
-    
+
     if let Some(snapshot) = snapshot {
         restore_window_state(h_wnd, &snapshot).map_err(|e| format!("{:?}", e))?;
-        
+
         let mut snapshots = state.window_snapshots.write().map_err(|e| e.to_string())?;
         snapshots.remove(&hwnd);
-        
-        let _ = app_handle.emit("window_restored", serde_json::json!({ "hwnd": hwnd, "was_fullscreen": snapshot.was_fullscreen }));
+
+        let _ = app_handle.emit(
+            "window_restored",
+            serde_json::json!({ "hwnd": hwnd, "was_fullscreen": snapshot.was_fullscreen }),
+        );
         Ok(())
     } else {
         Err("Snapshot not found for window".into())
@@ -172,7 +181,15 @@ pub fn hide_from_alt_tab(hwnd: HWND) -> Result<(), WindowError> {
         new_style |= WS_EX_TOOLWINDOW.0;
         new_style &= !WS_EX_APPWINDOW.0;
         let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style as isize);
-        let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED,
+        );
         Ok(())
     }
 }
@@ -183,7 +200,15 @@ pub fn restore_alt_tab(hwnd: HWND) -> Result<(), WindowError> {
         new_style &= !WS_EX_TOOLWINDOW.0;
         new_style |= WS_EX_APPWINDOW.0;
         let _ = SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style as isize);
-        let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED,
+        );
         Ok(())
     }
 }
@@ -197,8 +222,10 @@ pub fn is_fullscreen(hwnd: HWND) -> Result<bool, WindowError> {
             ..Default::default()
         };
         let _ = GetMonitorInfoW(monitor, &mut info);
-        let is_fs = rect.left <= info.rcMonitor.left && rect.top <= info.rcMonitor.top &&
-                   rect.right >= info.rcMonitor.right && rect.bottom >= info.rcMonitor.bottom;
+        let is_fs = rect.left <= info.rcMonitor.left
+            && rect.top <= info.rcMonitor.top
+            && rect.right >= info.rcMonitor.right
+            && rect.bottom >= info.rcMonitor.bottom;
         Ok(is_fs)
     }
 }
@@ -238,8 +265,14 @@ pub fn restore_window_state(hwnd: HWND, snapshot: &WindowSnapshot) -> Result<(),
         let placement = WINDOWPLACEMENT {
             length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
             showCmd: snapshot.placement.show_cmd,
-            ptMinPosition: POINT { x: snapshot.placement.pt_min_position_x, y: snapshot.placement.pt_min_position_y },
-            ptMaxPosition: POINT { x: snapshot.placement.pt_max_position_x, y: snapshot.placement.pt_max_position_y },
+            ptMinPosition: POINT {
+                x: snapshot.placement.pt_min_position_x,
+                y: snapshot.placement.pt_min_position_y,
+            },
+            ptMaxPosition: POINT {
+                x: snapshot.placement.pt_max_position_x,
+                y: snapshot.placement.pt_max_position_y,
+            },
             rcNormalPosition: RECT {
                 left: snapshot.placement.rc_normal_position_left,
                 top: snapshot.placement.rc_normal_position_top,
@@ -251,38 +284,69 @@ pub fn restore_window_state(hwnd: HWND, snapshot: &WindowSnapshot) -> Result<(),
         if SetWindowPlacement(hwnd, &placement).is_err() {
             return Err(WindowError::RestoreFailed);
         }
-        let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
+        let _ = SetWindowPos(
+            hwnd,
+            None,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED,
+        );
         Ok(())
     }
 }
 pub fn protect_process() -> Result<(), WindowError> {
     unsafe {
         let mut h_token = HANDLE::default();
-        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES, &mut h_token).is_err() {
+        if OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_QUERY | TOKEN_ADJUST_PRIVILEGES,
+            &mut h_token,
+        )
+        .is_err()
+        {
             return Err(WindowError::NotElevated);
         }
         let mut luid = windows::Win32::Foundation::LUID::default();
         let priv_name: Vec<u16> = "SeDebugPrivilege\0".encode_utf16().collect();
-        if LookupPrivilegeValueW(None, windows::core::PCWSTR(priv_name.as_ptr()), &mut luid).is_ok() {
+        if LookupPrivilegeValueW(None, windows::core::PCWSTR(priv_name.as_ptr()), &mut luid).is_ok()
+        {
             let tp = TOKEN_PRIVILEGES {
                 PrivilegeCount: 1,
-                Privileges: [LUID_AND_ATTRIBUTES { Luid: luid, Attributes: SE_PRIVILEGE_ENABLED }],
+                Privileges: [LUID_AND_ATTRIBUTES {
+                    Luid: luid,
+                    Attributes: SE_PRIVILEGE_ENABLED,
+                }],
             };
             let _ = AdjustTokenPrivileges(h_token, false, Some(&tp), 0, None, None);
         }
-        let _ = SetSecurityInfo(GetCurrentProcess(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, None, None, None, None);
+        let _ = SetSecurityInfo(
+            GetCurrentProcess(),
+            SE_KERNEL_OBJECT,
+            DACL_SECURITY_INFORMATION,
+            None,
+            None,
+            None,
+            None,
+        );
         Ok(())
     }
 }
 pub fn get_process_windows(pid: u32) -> Vec<HWND> {
     let mut windows: Vec<HWND> = Vec::new();
     unsafe {
-        let _ = EnumWindows(Some(enum_window_proc), LPARAM(&mut windows as *mut Vec<HWND> as isize));
+        let _ = EnumWindows(
+            Some(enum_window_proc),
+            LPARAM(&mut windows as *mut Vec<HWND> as isize),
+        );
     }
     let mut process_windows = Vec::new();
     for hwnd in windows {
         let mut window_pid = 0;
-        unsafe { GetWindowThreadProcessId(hwnd, Some(&mut window_pid)); }
+        unsafe {
+            GetWindowThreadProcessId(hwnd, Some(&mut window_pid));
+        }
         if window_pid == pid {
             process_windows.push(hwnd);
         }
@@ -315,10 +379,14 @@ pub fn install_hook(state: State<'_, Arc<AppState>>, app_handle: AppHandle) -> R
 }
 
 #[tauri::command]
-pub fn uninstall_hook(state: State<'_, Arc<AppState>>, app_handle: AppHandle) -> Result<(), String> {
+pub fn uninstall_hook(
+    state: State<'_, Arc<AppState>>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
     let mut h = state.keyboard_hook.lock().unwrap();
     if let Some(hook_wrapper) = h.take() {
-        crate::keyboard_hook::uninstall_keyboard_hook(hook_wrapper.0).map_err(|e| format!("{:?}", e))?;
+        crate::keyboard_hook::uninstall_keyboard_hook(hook_wrapper.0)
+            .map_err(|e| format!("{:?}", e))?;
     }
     let _ = app_handle.emit("keyboard_hook_removed", ());
     Ok(())

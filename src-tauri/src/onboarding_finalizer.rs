@@ -1,24 +1,24 @@
-use serde::{Deserialize, Serialize};
-use std::fs;
-use std::path::{Path, PathBuf};
-use argon2::{
-    password_hash::{SaltString, PasswordHasher},
-    Argon2,
-};
-use password_hash::rand_core::OsRng;
+use crate::models::AppState;
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use sha2::{Sha256, Digest};
+use argon2::{
+    password_hash::{PasswordHasher, SaltString},
+    Argon2,
+};
+use chrono::Utc;
+use password_hash::rand_core::OsRng;
+use rand::RngCore;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, State};
+use thiserror::Error;
 use winreg::enums::*;
 use winreg::RegKey;
-use chrono::Utc;
-use tauri::{AppHandle, State, Emitter};
-use crate::models::AppState;
-use std::sync::Arc;
-use rand::RngCore;
-use thiserror::Error;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OnboardingPayload {
     pub raw_credential: String,
@@ -136,14 +136,17 @@ pub async fn finalize_onboarding(
         .to_str()
         .ok_or("Non-UTF8 executable path")?
         .to_string();
-        
+
     match maybe_register_autostart(payload.settings.autostart_enabled, &exe_path) {
         Ok(_) => {
             if payload.settings.autostart_enabled {
                 artifacts.autostart_written = true;
             }
             emit_finalize_progress(&app_handle, "Registering autostart", "done");
-            let _ = app_handle.emit("autostart_registered", serde_json::json!({ "enabled": payload.settings.autostart_enabled }));
+            let _ = app_handle.emit(
+                "autostart_registered",
+                serde_json::json!({ "enabled": payload.settings.autostart_enabled }),
+            );
         }
         Err(e) => {
             eprintln!("Warning: Autostart registration failed: {}", e);
@@ -166,11 +169,14 @@ pub async fn finalize_onboarding(
         stale_apps: apps_res.stale,
     };
 
-    let _ = app_handle.emit("onboarding_complete", serde_json::json!({ 
-        "launch_mode": "onboarding", 
-        "apps_loaded": apps_res.saved 
-    }));
-    
+    let _ = app_handle.emit(
+        "onboarding_complete",
+        serde_json::json!({
+            "launch_mode": "onboarding",
+            "apps_loaded": apps_res.saved
+        }),
+    );
+
     Ok(result)
 }
 async fn handle_failure(
@@ -181,13 +187,16 @@ async fn handle_failure(
 ) -> Result<FinalizeResult, String> {
     let rollback_res = rollback_finalization(artifacts);
     let rollback_ok = rollback_res.is_ok();
-    
+
     let reason = error.to_string();
-    let _ = app.emit("onboarding_finalization_failed", serde_json::json!({
-        "step": step,
-        "reason": reason.clone(),
-        "rollback_ok": rollback_ok
-    }));
+    let _ = app.emit(
+        "onboarding_finalization_failed",
+        serde_json::json!({
+            "step": step,
+            "reason": reason.clone(),
+            "rollback_ok": rollback_ok
+        }),
+    );
 
     Ok(FinalizeResult {
         success: false,
@@ -199,13 +208,17 @@ async fn handle_failure(
     })
 }
 fn emit_finalize_progress(app: &AppHandle, step: &str, status: &str) {
-    let _ = app.emit("onboarding_step_progress", serde_json::json!({ "step": step, "status": status }));
+    let _ = app.emit(
+        "onboarding_step_progress",
+        serde_json::json!({ "step": step, "status": status }),
+    );
 }
 fn store_credential(raw: &str, cred_type: CredentialType) -> Result<(), FinalizeError> {
     let base_dir = get_fallback_config_dir();
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
-    let password_hash = argon2.hash_password(raw.as_bytes(), &salt)
+    let password_hash = argon2
+        .hash_password(raw.as_bytes(), &salt)
         .map_err(|e| FinalizeError::CredentialHashFailed(e.to_string()))?
         .to_string();
 
@@ -214,14 +227,14 @@ fn store_credential(raw: &str, cred_type: CredentialType) -> Result<(), Finalize
         "salt": salt.as_str(),
         "type": format!("{:?}", cred_type),
         "created_at": Utc::now()
-    })).map_err(|e| FinalizeError::CredentialWriteFailed(e.to_string()))?;
+    }))
+    .map_err(|e| FinalizeError::CredentialWriteFailed(e.to_string()))?;
 
     let encrypted = encrypt_data(&data, "applock_master_key_iv_protected")
         .map_err(|e| FinalizeError::CredentialWriteFailed(e))?;
 
     let path = base_dir.join("credentials.enc");
-    atomic_write(&path, &encrypted)
-        .map_err(|e| FinalizeError::CredentialWriteFailed(e.to_string()))
+    atomic_write(&path, &encrypted).map_err(|e| FinalizeError::CredentialWriteFailed(e.to_string()))
 }
 fn save_locked_apps(apps: Vec<OnboardingAppEntry>) -> Result<SavedAppsResult, FinalizeError> {
     let base_dir = get_fallback_config_dir();
@@ -249,23 +262,22 @@ fn save_locked_apps(apps: Vec<OnboardingAppEntry>) -> Result<SavedAppsResult, Fi
         .map_err(|e| FinalizeError::AppsWriteFailed(e.to_string()))?;
 
     let path = base_dir.join("locked_apps.json");
-    atomic_write(&path, &data)
-        .map_err(|e| FinalizeError::AppsWriteFailed(e.to_string()))?;
+    atomic_write(&path, &data).map_err(|e| FinalizeError::AppsWriteFailed(e.to_string()))?;
 
     Ok(SavedAppsResult { saved, stale })
 }
 fn save_initial_settings(settings: OnboardingSettings) -> Result<(), FinalizeError> {
     let base_dir = get_fallback_config_dir();
     if settings.app_grace_secs > 3600 {
-        return Err(FinalizeError::SettingsValidationFailed { 
-            field: "app_grace_secs".into(), 
-            reason: "Grace period cannot exceed 1 hour".into() 
+        return Err(FinalizeError::SettingsValidationFailed {
+            field: "app_grace_secs".into(),
+            reason: "Grace period cannot exceed 1 hour".into(),
         });
     }
     if settings.max_failed_attempts < 1 || settings.max_failed_attempts > 10 {
-        return Err(FinalizeError::SettingsValidationFailed { 
-            field: "max_failed_attempts".into(), 
-            reason: "Must be between 1 and 10".into() 
+        return Err(FinalizeError::SettingsValidationFailed {
+            field: "max_failed_attempts".into(),
+            reason: "Must be between 1 and 10".into(),
         });
     }
 
@@ -273,15 +285,17 @@ fn save_initial_settings(settings: OnboardingSettings) -> Result<(), FinalizeErr
         .map_err(|e| FinalizeError::SettingsWriteFailed(e.to_string()))?;
 
     let path = base_dir.join("settings.json");
-    atomic_write(&path, &data)
-        .map_err(|e| FinalizeError::SettingsWriteFailed(e.to_string()))
+    atomic_write(&path, &data).map_err(|e| FinalizeError::SettingsWriteFailed(e.to_string()))
 }
 fn maybe_register_autostart(enabled: bool, exe_path: &str) -> Result<(), FinalizeError> {
-    if !enabled { return Ok(()); }
-    
+    if !enabled {
+        return Ok(());
+    }
+
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let path = r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
-    let (key, _) = hkcu.create_subkey(path)
+    let (key, _) = hkcu
+        .create_subkey(path)
         .map_err(|e| FinalizeError::AutostartFailed(e.to_string()))?;
 
     key.set_value("AppLock", &format!("\"{}\" --boot-launch", exe_path))
@@ -292,17 +306,16 @@ fn mark_onboarding_complete() -> Result<(), FinalizeError> {
     let path = base_dir.join("settings.json");
     let content = fs::read_to_string(&path)
         .map_err(|e| FinalizeError::OnboardingFlagFailed(e.to_string()))?;
-    
+
     let mut settings: serde_json::Value = serde_json::from_str(&content)
         .map_err(|e| FinalizeError::OnboardingFlagFailed(e.to_string()))?;
-    
+
     settings["onboarding_complete"] = serde_json::json!(true);
-    
+
     let data = serde_json::to_vec_pretty(&settings)
         .map_err(|e| FinalizeError::OnboardingFlagFailed(e.to_string()))?;
 
-    atomic_write(&path, &data)
-        .map_err(|e| FinalizeError::OnboardingFlagFailed(e.to_string()))
+    atomic_write(&path, &data).map_err(|e| FinalizeError::OnboardingFlagFailed(e.to_string()))
 }
 fn rollback_finalization(artifacts: &FinalizeArtifacts) -> Result<(), FinalizeError> {
     let base_dir = get_fallback_config_dir();
@@ -325,7 +338,10 @@ fn rollback_finalization(artifacts: &FinalizeArtifacts) -> Result<(), FinalizeEr
     }
     if artifacts.autostart_written {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        if let Ok(key) = hkcu.open_subkey_with_flags(r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", KEY_SET_VALUE) {
+        if let Ok(key) = hkcu.open_subkey_with_flags(
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+            KEY_SET_VALUE,
+        ) {
             if let Err(e) = key.delete_value("AppLock") {
                 errors.push(format!("Failed to remove registry key: {}", e));
             }
@@ -358,14 +374,13 @@ fn encrypt_data(data: &[u8], key_str: &str) -> Result<Vec<u8>, String> {
     let key_bytes = hasher.finalize();
     let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
-    
+
     let mut nonce_bytes = [0u8; 12];
     rand::thread_rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
-    
-    let ciphertext = cipher.encrypt(nonce, data)
-        .map_err(|e| e.to_string())?;
-        
+
+    let ciphertext = cipher.encrypt(nonce, data).map_err(|e| e.to_string())?;
+
     let mut combined = nonce_bytes.to_vec();
     combined.extend_from_slice(&ciphertext);
     Ok(combined)

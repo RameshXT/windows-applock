@@ -1,53 +1,57 @@
-pub mod models;
-pub mod services;
-pub mod commands;
-pub mod utils;
-pub mod setup;
-pub mod credential_manager;
-pub mod crypto;
-pub mod secure_storage;
 pub mod app_scanner;
-pub mod icon_extractor;
-pub mod file_watcher;
-pub mod lock_session;
-pub mod process_watcher;
-pub mod window_manager;
-pub mod keyboard_hook;
-pub mod uwp_handler;
-pub mod watcher_supervisor;
-pub mod rate_limiter;
-pub mod verify_logger;
+pub mod commands;
+pub mod credential_manager;
 pub mod credential_verifier;
-pub mod grace_manager;
-pub mod system_event_watcher;
-pub mod overlay_manager;
-pub mod input_blocker;
-pub mod process_guard;
+pub mod crypto;
+pub mod file_watcher;
 pub mod fullscreen_handler;
-pub mod settings_manager;
+pub mod grace_manager;
+pub mod icon_extractor;
+pub mod input_blocker;
+pub mod keyboard_hook;
+pub mod lock_session;
+pub mod models;
 pub mod onboarding_finalizer;
+pub mod overlay_manager;
+pub mod process_guard;
+pub mod process_watcher;
+pub mod rate_limiter;
 pub mod recovery_manager;
+pub mod secure_storage;
+pub mod services;
+pub mod settings_manager;
+pub mod setup;
+pub mod system_event_watcher;
+pub mod utils;
+pub mod uwp_handler;
+pub mod verify_logger;
+pub mod watcher_supervisor;
+pub mod window_manager;
 
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex, RwLock};
-use std::fs;
-use tauri::Manager;
-use crate::models::AppState;
-use crate::utils::config::load_config;
-use crate::lock_session::LockSessionManager;
-use crate::process_watcher::ProcessWatcher;
-use crate::watcher_supervisor::WatcherSupervisor;
 use crate::grace_manager::GraceSessionStore;
+use crate::lock_session::LockSessionManager;
+use crate::models::AppState;
+use crate::process_watcher::ProcessWatcher;
+use crate::utils::config::load_config;
+use crate::watcher_supervisor::WatcherSupervisor;
+use std::collections::HashMap;
+use std::fs;
+use std::sync::{Arc, Mutex, RwLock};
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--start-minimized"])))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec!["--start-minimized"]),
+        ))
         .setup(|app| {
             let config_path = app.path().app_config_dir()?;
             fs::create_dir_all(&config_path)?;
@@ -65,7 +69,9 @@ pub fn run() {
                 active_blocked_app: Mutex::new(None),
                 min_window_size: Mutex::new((800, 600)),
                 was_maximized: Mutex::new(true),
-                rate_limit_state: Mutex::new(credential_verifier::load_lockout_state(&app.handle()).unwrap_or_default()),
+                rate_limit_state: Mutex::new(
+                    credential_verifier::load_lockout_state(&app.handle()).unwrap_or_default(),
+                ),
                 debounce_state: Mutex::new(rate_limiter::DebounceState::default()),
                 window_snapshots: Arc::new(RwLock::new(HashMap::new())),
                 keyboard_hook: Arc::new(Mutex::new(None)),
@@ -91,14 +97,16 @@ pub fn run() {
             let watcher_app_handle = app.handle().clone();
             let watcher_session_manager = session_manager.clone();
             tauri::async_runtime::spawn(async move {
-               let watcher = ProcessWatcher::new(watcher_app_handle, watcher_session_manager.clone());
-               watcher.start_polling().await;
+                let watcher =
+                    ProcessWatcher::new(watcher_app_handle, watcher_session_manager.clone());
+                watcher.start_polling().await;
             });
 
             let supervisor_app_handle = app.handle().clone();
             let supervisor_session_manager = session_manager.clone();
             tauri::async_runtime::spawn(async move {
-                let supervisor = WatcherSupervisor::new(supervisor_app_handle, supervisor_session_manager);
+                let supervisor =
+                    WatcherSupervisor::new(supervisor_app_handle, supervisor_session_manager);
                 supervisor.run().await;
             });
 
@@ -112,9 +120,9 @@ pub fn run() {
                     let mut was_max = state.was_maximized.lock().unwrap();
                     if *was_max && !is_max {
                         let min_size = state.min_window_size.lock().unwrap();
-                        let _ = window.set_size(tauri::Size::Physical(
-                            tauri::PhysicalSize::new(min_size.0, min_size.1),
-                        ));
+                        let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize::new(
+                            min_size.0, min_size.1,
+                        )));
                         let _ = window.center();
                     }
                     *was_max = is_max;

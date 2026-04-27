@@ -1,10 +1,10 @@
 use serde::Serialize;
-use std::process::Command;
+use std::collections::{HashMap, HashSet};
 use std::os::windows::process::CommandExt;
+use std::path::Path;
+use std::process::Command;
 use winreg::enums::*;
 use winreg::RegKey;
-use std::collections::{HashSet, HashMap};
-use std::path::Path;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct InstalledApp {
@@ -35,16 +35,44 @@ pub fn get_apps() -> Vec<InstalledApp> {
 
 fn scan_registry(apps: &mut HashMap<String, InstalledApp>, seen_paths: &mut HashSet<String>) {
     let registry_locations = [
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-        (HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
     ];
 
     let exclude_keywords = [
-        "redistributable", "update", "hotfix", "service pack", "language pack", 
-        "driver", "framework", "runtime", "sdk", "library", "directx", "vulkan", 
-        "nvidia physx", "intel(r) management", "host service", "client service", 
-        "engine", "module", "plugin", "python", "node.js", "java", "webview2"
+        "redistributable",
+        "update",
+        "hotfix",
+        "service pack",
+        "language pack",
+        "driver",
+        "framework",
+        "runtime",
+        "sdk",
+        "library",
+        "directx",
+        "vulkan",
+        "nvidia physx",
+        "intel(r) management",
+        "host service",
+        "client service",
+        "engine",
+        "module",
+        "plugin",
+        "python",
+        "node.js",
+        "java",
+        "webview2",
     ];
 
     for (root_hkey, path) in registry_locations {
@@ -53,34 +81,58 @@ fn scan_registry(apps: &mut HashMap<String, InstalledApp>, seen_paths: &mut Hash
             for name in key.enum_keys().filter_map(|x: Result<String, _>| x.ok()) {
                 if let Ok(sub_key) = key.open_subkey(&name) {
                     let display_name: String = sub_key.get_value("DisplayName").unwrap_or_default();
-                    if display_name.is_empty() { continue; }
+                    if display_name.is_empty() {
+                        continue;
+                    }
 
                     let name_lower = display_name.to_lowercase();
-                    if exclude_keywords.iter().any(|&k| name_lower.contains(k)) { continue; }
-                    
+                    if exclude_keywords.iter().any(|&k| name_lower.contains(k)) {
+                        continue;
+                    }
+
                     let system_component: u32 = sub_key.get_value("SystemComponent").unwrap_or(0);
-                    if system_component == 1 { continue; }
+                    if system_component == 1 {
+                        continue;
+                    }
 
                     let release_type: String = sub_key.get_value("ReleaseType").unwrap_or_default();
                     let rt_lower = release_type.to_lowercase();
-                    if rt_lower.contains("update") || rt_lower.contains("hotfix") || rt_lower.contains("pack") { continue; }
+                    if rt_lower.contains("update")
+                        || rt_lower.contains("hotfix")
+                        || rt_lower.contains("pack")
+                    {
+                        continue;
+                    }
 
                     let display_icon: String = sub_key.get_value("DisplayIcon").unwrap_or_default();
-                    let install_location: String = sub_key.get_value("InstallLocation").unwrap_or_default();
+                    let install_location: String =
+                        sub_key.get_value("InstallLocation").unwrap_or_default();
 
                     let mut exec_path = None;
                     if !display_icon.is_empty() {
-                        let icon_path = display_icon.split(',').next().unwrap_or(&display_icon).trim_matches('"');
-                        if icon_path.to_lowercase().ends_with(".exe") && Path::new(icon_path).exists() {
+                        let icon_path = display_icon
+                            .split(',')
+                            .next()
+                            .unwrap_or(&display_icon)
+                            .trim_matches('"');
+                        if icon_path.to_lowercase().ends_with(".exe")
+                            && Path::new(icon_path).exists()
+                        {
                             exec_path = Some(icon_path.to_string());
                         }
                     }
-                    if exec_path.is_none() && !install_location.is_empty() && Path::new(&install_location).exists() {
+                    if exec_path.is_none()
+                        && !install_location.is_empty()
+                        && Path::new(&install_location).exists()
+                    {
                         if let Ok(read_dir) = std::fs::read_dir(&install_location) {
-                            let mut exes: Vec<_> = read_dir.filter_map(|e| e.ok())
+                            let mut exes: Vec<_> = read_dir
+                                .filter_map(|e| e.ok())
                                 .filter(|e| e.path().extension().map_or(false, |ext| ext == "exe"))
                                 .collect();
-                            exes.sort_by_key(|e| std::fs::metadata(e.path()).map(|m| m.len()).unwrap_or(0));
+                            exes.sort_by_key(|e| {
+                                std::fs::metadata(e.path()).map(|m| m.len()).unwrap_or(0)
+                            });
                             if let Some(entry) = exes.last() {
                                 exec_path = Some(entry.path().to_string_lossy().to_string());
                             }
@@ -89,17 +141,23 @@ fn scan_registry(apps: &mut HashMap<String, InstalledApp>, seen_paths: &mut Hash
 
                     if let Some(path) = exec_path {
                         let path_lower = path.to_lowercase();
-                        if path_lower.contains("uninst") || path_lower.contains("setup") || path_lower.contains("helper") {
+                        if path_lower.contains("uninst")
+                            || path_lower.contains("setup")
+                            || path_lower.contains("helper")
+                        {
                             continue;
                         }
 
                         if !seen_paths.contains(&path_lower) {
                             seen_paths.insert(path_lower.clone());
-                            apps.insert(display_name.clone(), InstalledApp {
-                                name: display_name,
-                                path: Some(path),
-                                icon: None, // PowerShell will add icons later or we live without them for rare apps
-                            });
+                            apps.insert(
+                                display_name.clone(),
+                                InstalledApp {
+                                    name: display_name,
+                                    path: Some(path),
+                                    icon: None, // PowerShell will add icons later or we live without them for rare apps
+                                },
+                            );
                         }
                     }
                 }
@@ -247,14 +305,19 @@ pub fn get_apps_powershell() -> Vec<InstalledApp> {
 
     if let Ok(out) = output {
         let json = String::from_utf8_lossy(&out.stdout).trim().to_string();
-        if json.is_empty() || json == "[]" { return Vec::new(); }
-        
+        if json.is_empty() || json == "[]" {
+            return Vec::new();
+        }
+
         if let Ok(apps) = serde_json::from_str::<Vec<serde_json::Value>>(&json) {
-            return apps.into_iter().map(|v| InstalledApp {
-                name: v["Name"].as_str().unwrap_or("Unknown").to_string(),
-                path: v["Path"].as_str().map(|s| s.to_string()),
-                icon: v["Icon"].as_str().map(|s| s.to_string()),
-            }).collect();
+            return apps
+                .into_iter()
+                .map(|v| InstalledApp {
+                    name: v["Name"].as_str().unwrap_or("Unknown").to_string(),
+                    path: v["Path"].as_str().map(|s| s.to_string()),
+                    icon: v["Icon"].as_str().map(|s| s.to_string()),
+                })
+                .collect();
         } else if let Ok(app) = serde_json::from_str::<serde_json::Value>(&json) {
             return vec![InstalledApp {
                 name: app["Name"].as_str().unwrap_or("Unknown").to_string(),

@@ -1,5 +1,5 @@
 pub mod config;
 pub mod state;
 
-pub use config::{AuthMode, LockedApp, AppConfig};
+pub use config::{AppConfig, AuthMode, LockedApp};
 pub use state::AppState;

@@ -1,10 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use std::time::Instant;
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use thiserror::Error;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Error)]
 pub enum GraceError {
@@ -95,7 +95,7 @@ pub async fn start_grace_session(
     app_handle: AppHandle,
 ) -> Result<(), GraceError> {
     let settings = get_grace_settings_internal(&app_handle).await?;
-    
+
     if !settings.enabled || settings.max_security_mode {
         return Ok(());
     }
@@ -115,7 +115,7 @@ pub async fn start_grace_session(
     let app_id_clone = app_id.to_string();
     let app_name_clone = app_name.to_string();
     let app_handle_clone = app_handle.clone();
-    
+
     let expiry_task = tokio::spawn(async move {
         tokio::time::sleep(std::time::Duration::from_secs(duration_secs)).await;
         let store_arc = app_handle_clone.state::<Arc<RwLock<GraceSessionStore>>>();
@@ -123,11 +123,14 @@ pub async fn start_grace_session(
         if let Some(session) = store.sessions.get_mut(&app_id_clone) {
             session.is_active = false;
         }
-        
-        let _ = app_handle_clone.emit("grace_expired", serde_json::json!({
-            "app_id": app_id_clone,
-            "app_name": app_name_clone
-        }));
+
+        let _ = app_handle_clone.emit(
+            "grace_expired",
+            serde_json::json!({
+                "app_id": app_id_clone,
+                "app_name": app_name_clone
+            }),
+        );
     });
 
     let session = GraceSession {
@@ -141,12 +144,15 @@ pub async fn start_grace_session(
     };
 
     store.sessions.insert(app_id.to_string(), session);
-    let _ = app_handle.emit("grace_started", serde_json::json!({
-        "app_id": app_id,
-        "app_name": app_name,
-        "grace_duration_secs": duration_secs,
-        "seconds_remaining": duration_secs
-    }));
+    let _ = app_handle.emit(
+        "grace_started",
+        serde_json::json!({
+            "app_id": app_id,
+            "app_name": app_name,
+            "grace_duration_secs": duration_secs,
+            "seconds_remaining": duration_secs
+        }),
+    );
 
     Ok(())
 }
@@ -155,7 +161,7 @@ pub async fn check_grace_session_internal(
     store_arc: &Arc<RwLock<GraceSessionStore>>,
 ) -> GraceCheckResult {
     let store = store_arc.read().await;
-    
+
     if store.max_security_mode {
         return GraceCheckResult::Disabled;
     }
@@ -168,7 +174,9 @@ pub async fn check_grace_session_internal(
         let now = Instant::now();
         if now < session.expires_at {
             let remaining = (session.expires_at - now).as_secs();
-            GraceCheckResult::Active { seconds_remaining: remaining }
+            GraceCheckResult::Active {
+                seconds_remaining: remaining,
+            }
         } else {
             GraceCheckResult::Expired
         }
@@ -188,7 +196,7 @@ pub async fn reset_all_grace_sessions(
             task.abort();
         }
     }
-    
+
     store.sessions.clear();
 
     let reason_str = match reason {
@@ -200,10 +208,13 @@ pub async fn reset_all_grace_sessions(
         _ => "other",
     };
 
-    let _ = app_handle.emit("all_grace_sessions_reset", serde_json::json!({
-        "reason": reason_str,
-        "count_cleared": count
-    }));
+    let _ = app_handle.emit(
+        "all_grace_sessions_reset",
+        serde_json::json!({
+            "reason": reason_str,
+            "count_cleared": count
+        }),
+    );
 
     count
 }
@@ -214,25 +225,35 @@ pub fn get_grace_duration_for_app(app_id: &str, settings: &GraceSettings) -> u64
         settings.default_duration_secs
     }
 }
-pub async fn get_grace_settings_internal(app_handle: &AppHandle) -> Result<GraceSettings, GraceError> {
-    let config_dir = app_handle.path().app_config_dir().map_err(|_| GraceError::SettingsLoadFailed)?;
+pub async fn get_grace_settings_internal(
+    app_handle: &AppHandle,
+) -> Result<GraceSettings, GraceError> {
+    let config_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|_| GraceError::SettingsLoadFailed)?;
     let settings_path = config_dir.join("grace_settings.json");
-    
+
     if !settings_path.exists() {
         return Ok(GraceSettings::default());
     }
 
-    let content = std::fs::read_to_string(settings_path).map_err(|_| GraceError::SettingsLoadFailed)?;
+    let content =
+        std::fs::read_to_string(settings_path).map_err(|_| GraceError::SettingsLoadFailed)?;
     serde_json::from_str(&content).map_err(|_| GraceError::SettingsLoadFailed)
 }
 pub async fn save_grace_settings_internal(
     app_handle: &AppHandle,
     settings: &GraceSettings,
 ) -> Result<(), GraceError> {
-    let config_dir = app_handle.path().app_config_dir().map_err(|_| GraceError::SettingsSaveFailed)?;
+    let config_dir = app_handle
+        .path()
+        .app_config_dir()
+        .map_err(|_| GraceError::SettingsSaveFailed)?;
     let settings_path = config_dir.join("grace_settings.json");
-    
-    let content = serde_json::to_string_pretty(settings).map_err(|_| GraceError::SettingsSaveFailed)?;
+
+    let content =
+        serde_json::to_string_pretty(settings).map_err(|_| GraceError::SettingsSaveFailed)?;
     std::fs::write(settings_path, content).map_err(|_| GraceError::SettingsSaveFailed)
 }
 
@@ -250,23 +271,27 @@ pub async fn get_all_grace_sessions(
 ) -> Result<Vec<GraceSessionView>, String> {
     let store = store.read().await;
     let now = Instant::now();
-    
-    let views = store.sessions.values().map(|s| {
-        let remaining = if s.is_active && now < s.expires_at {
-            (s.expires_at - now).as_secs()
-        } else {
-            0
-        };
-        
-        GraceSessionView {
-            app_id: s.app_id.clone(),
-            app_name: s.app_name.clone(),
-            seconds_remaining: remaining,
-            grace_duration_secs: s.grace_duration_secs,
-            is_active: s.is_active && remaining > 0,
-        }
-    }).collect();
-    
+
+    let views = store
+        .sessions
+        .values()
+        .map(|s| {
+            let remaining = if s.is_active && now < s.expires_at {
+                (s.expires_at - now).as_secs()
+            } else {
+                0
+            };
+
+            GraceSessionView {
+                app_id: s.app_id.clone(),
+                app_name: s.app_name.clone(),
+                seconds_remaining: remaining,
+                grace_duration_secs: s.grace_duration_secs,
+                is_active: s.is_active && remaining > 0,
+            }
+        })
+        .collect();
+
     Ok(views)
 }
 
@@ -281,13 +306,16 @@ pub async fn re_lock_app(
         if let Some(task) = session.expiry_task.take() {
             task.abort();
         }
-        
-        let _ = app_handle.emit("grace_session_cleared", serde_json::json!({
-            "app_id": app_id,
-            "app_name": session.app_name,
-            "reason": "manual"
-        }));
-        
+
+        let _ = app_handle.emit(
+            "grace_session_cleared",
+            serde_json::json!({
+                "app_id": app_id,
+                "app_name": session.app_name,
+                "reason": "manual"
+            }),
+        );
+
         Ok(())
     } else {
         Err("Session not found".to_string())
@@ -304,10 +332,10 @@ pub async fn re_lock_all(
 }
 
 #[tauri::command]
-pub async fn get_grace_settings(
-    app_handle: AppHandle,
-) -> Result<GraceSettings, String> {
-    get_grace_settings_internal(&app_handle).await.map_err(|e| e.to_string())
+pub async fn get_grace_settings(app_handle: AppHandle) -> Result<GraceSettings, String> {
+    get_grace_settings_internal(&app_handle)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -316,20 +344,33 @@ pub async fn update_grace_settings(
     app_handle: AppHandle,
     store: tauri::State<'_, Arc<RwLock<GraceSessionStore>>>,
 ) -> Result<(), String> {
-    save_grace_settings_internal(&app_handle, &settings).await.map_err(|e| e.to_string())?;
+    save_grace_settings_internal(&app_handle, &settings)
+        .await
+        .map_err(|e| e.to_string())?;
     let mut store = store.write().await;
     if settings.max_security_mode && !store.max_security_mode {
         store.max_security_mode = true;
         drop(store); // release lock before reset
-        reset_all_grace_sessions(SystemEvent::ManualReLockAll, &app_handle.state::<Arc<RwLock<GraceSessionStore>>>(), &app_handle).await;
-        let _ = app_handle.emit("max_security_mode_changed", serde_json::json!({ "enabled": true }));
+        reset_all_grace_sessions(
+            SystemEvent::ManualReLockAll,
+            &app_handle.state::<Arc<RwLock<GraceSessionStore>>>(),
+            &app_handle,
+        )
+        .await;
+        let _ = app_handle.emit(
+            "max_security_mode_changed",
+            serde_json::json!({ "enabled": true }),
+        );
     } else if !settings.max_security_mode && store.max_security_mode {
         store.max_security_mode = false;
-        let _ = app_handle.emit("max_security_mode_changed", serde_json::json!({ "enabled": false }));
+        let _ = app_handle.emit(
+            "max_security_mode_changed",
+            serde_json::json!({ "enabled": false }),
+        );
     } else {
         store.max_security_mode = settings.max_security_mode;
     }
-    
+
     Ok(())
 }
 
@@ -339,15 +380,17 @@ pub async fn set_max_security_mode(
     app_handle: AppHandle,
     store: tauri::State<'_, Arc<RwLock<GraceSessionStore>>>,
 ) -> Result<(), String> {
-    let mut settings = get_grace_settings_internal(&app_handle).await.map_err(|e| e.to_string())?;
+    let mut settings = get_grace_settings_internal(&app_handle)
+        .await
+        .map_err(|e| e.to_string())?;
     settings.max_security_mode = enabled;
     update_grace_settings(settings, app_handle, store).await
 }
 
 #[tauri::command]
-pub async fn get_max_security_mode(
-    app_handle: AppHandle,
-) -> Result<bool, String> {
-    let settings = get_grace_settings_internal(&app_handle).await.map_err(|e| e.to_string())?;
+pub async fn get_max_security_mode(app_handle: AppHandle) -> Result<bool, String> {
+    let settings = get_grace_settings_internal(&app_handle)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(settings.max_security_mode)
 }

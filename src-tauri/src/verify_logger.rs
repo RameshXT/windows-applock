@@ -1,7 +1,7 @@
 use crate::rate_limiter::VerifyContext;
+use crate::secure_storage::{read_encrypted_internal, write_encrypted_internal};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use crate::secure_storage::{read_encrypted_internal, write_encrypted_internal};
 use tauri::AppHandle;
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub enum VerifyFailReason {
@@ -31,7 +31,7 @@ pub fn record_attempt(app_handle: &AppHandle, entry: VerifyAttempt) -> Result<()
         Ok(l) => l,
         Err(_) => Vec::new(),
     };
-    
+
     logs.push(entry);
     if logs.len() > 1000 {
         let overflow = logs.len() - 1000;

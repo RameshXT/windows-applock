@@ -1,10 +1,10 @@
-use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, State};
 use crate::models::{AppConfig, AppState};
 use crate::utils::config::save_config;
+use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[cfg(target_os = "windows")]
-use winreg::{RegKey, enums::*};
+use winreg::{enums::*, RegKey};
 #[tauri::command]
 pub async fn get_config(state: State<'_, Arc<AppState>>) -> Result<AppConfig, String> {
     let config = state.config.lock().unwrap();

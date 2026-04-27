@@ -1,21 +1,17 @@
-use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CallNextHookEx, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT,
-    WH_KEYBOARD_LL, WM_KEYDOWN, WM_SYSKEYDOWN,
-};
-use windows::Win32::UI::Input::KeyboardAndMouse::{VK_TAB, VK_LWIN, VK_RWIN};
 use crate::window_manager::WindowError;
+use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
+use windows::Win32::UI::Input::KeyboardAndMouse::{VK_LWIN, VK_RWIN, VK_TAB};
+use windows::Win32::UI::WindowsAndMessaging::{
+    CallNextHookEx, SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT, WH_KEYBOARD_LL,
+    WM_KEYDOWN, WM_SYSKEYDOWN,
+};
 
 pub static mut HOOK_HANDLE: Option<HHOOK> = None;
 pub fn install_keyboard_hook() -> Result<HHOOK, WindowError> {
     unsafe {
-        let hook = SetWindowsHookExW(
-            WH_KEYBOARD_LL,
-            Some(keyboard_proc),
-            None,
-            0,
-        ).map_err(|_| WindowError::HookFailed)?;
-        
+        let hook = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), None, 0)
+            .map_err(|_| WindowError::HookFailed)?;
+
         HOOK_HANDLE = Some(hook);
         Ok(hook)
     }
@@ -46,11 +42,12 @@ unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARA
                 WIN_PRESSED = false;
             }
         }
-        
-        if WIN_PRESSED && key == 0x44 { // 'D' key
+
+        if WIN_PRESSED && key == 0x44 {
+            // 'D' key
             return LRESULT(1);
         }
     }
-    
+
     CallNextHookEx(None, code, wparam, lparam)
 }

@@ -1,18 +1,17 @@
+use crate::grace_manager::{reset_all_grace_sessions, GraceSessionStore, SystemEvent};
 use std::sync::Arc;
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::RwLock;
-use tauri::{AppHandle, Manager, Emitter};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, HINSTANCE};
-use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW, 
-    CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, WINDOW_EX_STYLE, WINDOW_STYLE, 
-    WNDCLASSW, HWND_MESSAGE, WM_POWERBROADCAST, WM_WTSSESSION_CHANGE,
-    PBT_APMSUSPEND, PBT_APMRESUMEAUTOMATIC,
-};
+use windows::core::PCWSTR;
+use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
 use windows::Win32::System::RemoteDesktop::{
     WTSRegisterSessionNotification, NOTIFY_FOR_THIS_SESSION,
 };
-use windows::core::PCWSTR;
-use crate::grace_manager::{reset_all_grace_sessions, GraceSessionStore, SystemEvent};
+use windows::Win32::UI::WindowsAndMessaging::{
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, RegisterClassW, CS_HREDRAW,
+    CS_VREDRAW, CW_USEDEFAULT, HWND_MESSAGE, MSG, PBT_APMRESUMEAUTOMATIC, PBT_APMSUSPEND,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST, WM_WTSSESSION_CHANGE, WNDCLASSW,
+};
 
 static mut APP_HANDLE: Option<AppHandle> = None;
 
@@ -27,52 +26,61 @@ pub fn start_system_event_watcher(app_handle: AppHandle) {
         APP_HANDLE = Some(app_handle.clone());
     }
 
-    std::thread::spawn(move || {
-        unsafe {
-            let class_name = "AppLockSystemEventWatcher\0".encode_utf16().collect::<Vec<u16>>();
-            let instance = windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap_or_default();
-            
-            let wnd_class = WNDCLASSW {
-                style: CS_HREDRAW | CS_VREDRAW,
-                lpfnWndProc: Some(wnd_proc),
-                hInstance: HINSTANCE(instance.0),
-                lpszClassName: PCWSTR(class_name.as_ptr()),
-                ..Default::default()
-            };
+    std::thread::spawn(move || unsafe {
+        let class_name = "AppLockSystemEventWatcher\0"
+            .encode_utf16()
+            .collect::<Vec<u16>>();
+        let instance =
+            windows::Win32::System::LibraryLoader::GetModuleHandleW(None).unwrap_or_default();
 
-            RegisterClassW(&wnd_class);
+        let wnd_class = WNDCLASSW {
+            style: CS_HREDRAW | CS_VREDRAW,
+            lpfnWndProc: Some(wnd_proc),
+            hInstance: HINSTANCE(instance.0),
+            lpszClassName: PCWSTR(class_name.as_ptr()),
+            ..Default::default()
+        };
 
-            let hwnd_res = CreateWindowExW(
-                WINDOW_EX_STYLE::default(),
-                PCWSTR(class_name.as_ptr()),
-                PCWSTR("SystemEventWatcher\0".encode_utf16().collect::<Vec<u16>>().as_ptr()),
-                WINDOW_STYLE::default(),
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                CW_USEDEFAULT,
-                Some(HWND_MESSAGE), 
-                None,
-                Some(wnd_class.hInstance),
-                None,
-            );
+        RegisterClassW(&wnd_class);
 
-            let hwnd = match hwnd_res {
-                Ok(h) => h,
-                Err(e) => {
-                    eprintln!("Failed to create hidden window for system event watcher: {}", e);
-                    return;
-                }
-            };
+        let hwnd_res = CreateWindowExW(
+            WINDOW_EX_STYLE::default(),
+            PCWSTR(class_name.as_ptr()),
+            PCWSTR(
+                "SystemEventWatcher\0"
+                    .encode_utf16()
+                    .collect::<Vec<u16>>()
+                    .as_ptr(),
+            ),
+            WINDOW_STYLE::default(),
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            CW_USEDEFAULT,
+            Some(HWND_MESSAGE),
+            None,
+            Some(wnd_class.hInstance),
+            None,
+        );
 
-            if let Err(e) = WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION) {
-                 eprintln!("Failed to register session notification: {}", e);
+        let hwnd = match hwnd_res {
+            Ok(h) => h,
+            Err(e) => {
+                eprintln!(
+                    "Failed to create hidden window for system event watcher: {}",
+                    e
+                );
+                return;
             }
+        };
 
-            let mut msg = MSG::default();
-            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-                DispatchMessageW(&msg);
-            }
+        if let Err(e) = WTSRegisterSessionNotification(hwnd, NOTIFY_FOR_THIS_SESSION) {
+            eprintln!("Failed to register session notification: {}", e);
+        }
+
+        let mut msg = MSG::default();
+        while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+            DispatchMessageW(&msg);
         }
     });
 
@@ -89,10 +97,15 @@ pub fn start_system_event_watcher(app_handle: AppHandle) {
                     Some(&mut is_running as *mut _ as *mut _),
                     windows::Win32::UI::WindowsAndMessaging::SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS(0),
                 );
-                
+
                 if spi_res.is_ok() && is_running.as_bool() {
                     let store = app_handle_clone.state::<Arc<RwLock<GraceSessionStore>>>();
-                    reset_all_grace_sessions(SystemEvent::ScreensaverStarted, &store, &app_handle_clone).await;
+                    reset_all_grace_sessions(
+                        SystemEvent::ScreensaverStarted,
+                        &store,
+                        &app_handle_clone,
+                    )
+                    .await;
                 }
             }
         }
@@ -117,9 +130,13 @@ extern "system" fn wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM
 }
 
 unsafe fn handle_session_change(event: u32) {
-    let app_handle = if let Some(h) = (&raw const APP_HANDLE).as_ref().and_then(|h| h.as_ref()) { h } else { return };
+    let app_handle = if let Some(h) = (&raw const APP_HANDLE).as_ref().and_then(|h| h.as_ref()) {
+        h
+    } else {
+        return;
+    };
     let store = app_handle.state::<Arc<RwLock<GraceSessionStore>>>();
-    
+
     match event {
         WTS_SESSION_LOCK => {
             tauri::async_runtime::spawn({
@@ -130,7 +147,10 @@ unsafe fn handle_session_change(event: u32) {
                 }
             });
         }
-        e if e == WTS_SESSION_LOGOFF || e == WTS_REMOTE_DISCONNECT || e == WTS_CONSOLE_DISCONNECT => {
+        e if e == WTS_SESSION_LOGOFF
+            || e == WTS_REMOTE_DISCONNECT
+            || e == WTS_CONSOLE_DISCONNECT =>
+        {
             tauri::async_runtime::spawn({
                 let app_handle = app_handle.clone();
                 let store = store.clone();
@@ -153,7 +173,11 @@ unsafe fn handle_session_change(event: u32) {
 }
 
 unsafe fn handle_power_broadcast(event: u32) {
-    let app_handle = if let Some(h) = (&raw const APP_HANDLE).as_ref().and_then(|h| h.as_ref()) { h } else { return };
+    let app_handle = if let Some(h) = (&raw const APP_HANDLE).as_ref().and_then(|h| h.as_ref()) {
+        h
+    } else {
+        return;
+    };
     let store = app_handle.state::<Arc<RwLock<GraceSessionStore>>>();
 
     match event {
@@ -162,7 +186,8 @@ unsafe fn handle_power_broadcast(event: u32) {
                 let app_handle = app_handle.clone();
                 let store = store.clone();
                 async move {
-                    reset_all_grace_sessions(SystemEvent::SessionSuspend, &store, &app_handle).await;
+                    reset_all_grace_sessions(SystemEvent::SessionSuspend, &store, &app_handle)
+                        .await;
                 }
             });
         }

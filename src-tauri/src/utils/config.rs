@@ -1,7 +1,7 @@
-use std::fs;
-use std::path::PathBuf;
 use crate::models::{AppConfig, AuthMode};
 use crate::services::security;
+use std::fs;
+use std::path::PathBuf;
 
 pub fn save_config(config: &AppConfig, path: &PathBuf) -> Result<(), String> {
     let data = serde_json::to_vec(config).map_err(|e| e.to_string())?;

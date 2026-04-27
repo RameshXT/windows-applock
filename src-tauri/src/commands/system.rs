@@ -1,6 +1,6 @@
+use crate::models::{AppState, LockedApp};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
-use crate::models::{AppState, LockedApp};
 #[tauri::command]
 pub async fn get_blocked_app(state: State<'_, Arc<AppState>>) -> Result<Option<LockedApp>, String> {
     let app = state.active_blocked_app.lock().unwrap();

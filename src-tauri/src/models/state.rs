@@ -1,12 +1,12 @@
-use std::sync::{Mutex, Arc, RwLock};
-use std::path::PathBuf;
-use std::collections::{HashSet, HashMap};
-use std::time::Instant;
-use serde::{Serialize, Deserialize};
 use crate::models::config::{AppConfig, LockedApp};
-use crate::window_manager::{WindowSnapshot, SendHhook};
+use crate::window_manager::{SendHhook, WindowSnapshot};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, RwLock};
+use std::time::Instant;
 
-use crate::rate_limiter::{RateLimitState, DebounceState};
+use crate::rate_limiter::{DebounceState, RateLimitState};
 
 use chrono::{DateTime, Utc};
 #[derive(Debug, Serialize, Deserialize, Clone)]

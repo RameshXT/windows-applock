@@ -1,9 +1,9 @@
-use notify::{Watcher, RecursiveMode, EventKind};
+use crate::app_scanner;
+use notify::{EventKind, RecursiveMode, Watcher};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::AppHandle;
-use crate::app_scanner;
 
 pub struct WatcherState {
     pub watcher: Option<notify::RecommendedWatcher>,
@@ -15,7 +15,9 @@ lazy_static::lazy_static! {
 
 pub fn start_file_watcher_internal(app_handle: AppHandle) -> Result<(), String> {
     let mut state = GLOBAL_WATCHER.lock().unwrap();
-    if state.watcher.is_some() { return Ok(()); }
+    if state.watcher.is_some() {
+        return Ok(());
+    }
 
     let app_handle_clone = app_handle.clone();
     let (tx, rx) = std::sync::mpsc::channel();
@@ -24,7 +26,8 @@ pub fn start_file_watcher_internal(app_handle: AppHandle) -> Result<(), String> 
         .map_err(|e| e.to_string())?;
     let watch_paths = vec![
         std::env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string()),
-        std::env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string()),
+        std::env::var("ProgramFiles(x86)")
+            .unwrap_or_else(|_| "C:\\Program Files (x86)".to_string()),
         std::env::var("LOCALAPPDATA").unwrap_or_default(),
     ];
 
@@ -44,7 +47,11 @@ pub fn start_file_watcher_internal(app_handle: AppHandle) -> Result<(), String> 
             if let Ok(Ok(event)) = rx.recv_timeout(Duration::from_millis(500)) {
                 match event.kind {
                     EventKind::Create(_) | EventKind::Modify(_) => {
-                        if event.paths.iter().any(|p| p.extension().and_then(|s| s.to_str()) == Some("exe")) {
+                        if event
+                            .paths
+                            .iter()
+                            .any(|p| p.extension().and_then(|s| s.to_str()) == Some("exe"))
+                        {
                             last_event_time = std::time::Instant::now();
                             pending_event = true;
                         }
@@ -56,7 +63,9 @@ pub fn start_file_watcher_internal(app_handle: AppHandle) -> Result<(), String> 
                 pending_event = false;
                 let _ = app_scanner::start_scan_internal(app_handle_clone.clone());
             }
-            if GLOBAL_WATCHER.lock().unwrap().watcher.is_none() { break; }
+            if GLOBAL_WATCHER.lock().unwrap().watcher.is_none() {
+                break;
+            }
         }
     });
 

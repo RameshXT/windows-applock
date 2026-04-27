@@ -1,14 +1,22 @@
-use std::path::Path;
-use windows::Win32::UI::Shell::{SHGetFileInfoW, SHGFI_ICON, SHGFI_LARGEICON, SHFILEINFOW};
-use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, HICON, GetIconInfo, ICONINFO};
-use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC, GetDIBits, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, RGBQUAD};
-use windows::core::PCWSTR;
-use image::{RgbaImage, ImageFormat};
-use tauri::{AppHandle, Manager};
+use image::{ImageFormat, RgbaImage};
 use std::fs;
+use std::path::Path;
+use tauri::{AppHandle, Manager};
+use windows::core::PCWSTR;
+use windows::Win32::Graphics::Gdi::{
+    GetDC, GetDIBits, ReleaseDC, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, RGBQUAD,
+};
+use windows::Win32::UI::Shell::{SHGetFileInfoW, SHFILEINFOW, SHGFI_ICON, SHGFI_LARGEICON};
+use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, HICON, ICONINFO};
 
-pub fn extract_icon_to_file(exe_path: &str, app_id: &str, app_handle: &AppHandle) -> Result<String, String> {
-    let icon_dir = app_handle.path().app_data_dir()
+pub fn extract_icon_to_file(
+    exe_path: &str,
+    app_id: &str,
+    app_handle: &AppHandle,
+) -> Result<String, String> {
+    let icon_dir = app_handle
+        .path()
+        .app_data_dir()
         .map_err(|e: tauri::Error| e.to_string())?
         .join("icons");
 
@@ -38,7 +46,7 @@ pub fn extract_icon_to_file(exe_path: &str, app_id: &str, app_handle: &AppHandle
 
         let result = hicon_to_png(shfi.hIcon, &save_path);
         let _ = DestroyIcon(shfi.hIcon);
-        
+
         result.map(|_| save_path.to_string_lossy().to_string())
     }
 }
@@ -64,8 +72,16 @@ unsafe fn hicon_to_png(hicon: HICON, save_path: &Path) -> Result<(), String> {
     };
 
     let mut buffer: Vec<u8> = vec![0; 32 * 32 * 4];
-    let lines = GetDIBits(hdc, ii.hbmColor, 0, 32, Some(buffer.as_mut_ptr() as *mut _), &mut bmi, DIB_RGB_COLORS);
-    
+    let lines = GetDIBits(
+        hdc,
+        ii.hbmColor,
+        0,
+        32,
+        Some(buffer.as_mut_ptr() as *mut _),
+        &mut bmi,
+        DIB_RGB_COLORS,
+    );
+
     ReleaseDC(None, hdc);
 
     if lines == 0 {
@@ -75,9 +91,8 @@ unsafe fn hicon_to_png(hicon: HICON, save_path: &Path) -> Result<(), String> {
         pixel.swap(0, 2);
     }
 
-    let img = RgbaImage::from_raw(32, 32, buffer)
-        .ok_or("Failed to create image buffer")?;
-    
+    let img = RgbaImage::from_raw(32, 32, buffer).ok_or("Failed to create image buffer")?;
+
     img.save_with_format(save_path, ImageFormat::Png)
         .map_err(|e| e.to_string())?;
 

@@ -1,14 +1,14 @@
+use crate::lock_session::{ActiveLockSession, LockSessionManager, LockedAppEntry, WatcherState};
+use crate::uwp_handler::UwpHandler;
+use crate::window_manager;
+use chrono::Utc;
 use std::sync::Arc;
 use std::time::Duration;
 use sysinfo::System;
 use tauri::{AppHandle, Emitter, Manager};
-use crate::lock_session::{LockSessionManager, ActiveLockSession, LockedAppEntry, WatcherState};
-use crate::window_manager;
-use crate::uwp_handler::UwpHandler;
-use chrono::Utc;
+use windows::Win32::Foundation::{CloseHandle, HANDLE};
 use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
 use windows::Win32::System::Threading::OpenProcessToken;
-use windows::Win32::Foundation::{HANDLE, CloseHandle};
 
 pub struct ProcessWatcher {
     app_handle: AppHandle,
@@ -40,36 +40,67 @@ impl ProcessWatcher {
 
             for (pid, process) in sys.processes() {
                 let pid_u32 = pid.as_u32();
-                if self.session_manager.active_sessions.read().unwrap().contains_key(&pid_u32) {
+                if self
+                    .session_manager
+                    .active_sessions
+                    .read()
+                    .unwrap()
+                    .contains_key(&pid_u32)
+                {
                     continue;
                 }
 
-                let exe_path = process.exe().map(|p| p.to_string_lossy().to_string()).unwrap_or_default();
+                let exe_path = process
+                    .exe()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
                 if let Some(locked_app) = self.session_manager.is_app_locked(&exe_path) {
-                    let grace_store = self.app_handle.state::<Arc<tokio::sync::RwLock<crate::grace_manager::GraceSessionStore>>>();
-                    let grace_result = crate::grace_manager::check_grace_session_internal(&locked_app.id, &grace_store).await;
-                    
-                    if let crate::grace_manager::GraceCheckResult::Active { seconds_remaining } = grace_result {
-                        self.app_handle.emit("grace_bypass_used", serde_json::json!({
-                            "app_id": locked_app.id,
-                            "app_name": locked_app.name,
-                            "seconds_remaining": seconds_remaining
-                        })).unwrap();
-                        
+                    let grace_store = self
+                        .app_handle
+                        .state::<Arc<tokio::sync::RwLock<crate::grace_manager::GraceSessionStore>>>(
+                        );
+                    let grace_result = crate::grace_manager::check_grace_session_internal(
+                        &locked_app.id,
+                        &grace_store,
+                    )
+                    .await;
+
+                    if let crate::grace_manager::GraceCheckResult::Active { seconds_remaining } =
+                        grace_result
+                    {
+                        self.app_handle
+                            .emit(
+                                "grace_bypass_used",
+                                serde_json::json!({
+                                    "app_id": locked_app.id,
+                                    "app_name": locked_app.name,
+                                    "seconds_remaining": seconds_remaining
+                                }),
+                            )
+                            .unwrap();
+
                         continue;
                     }
                     {
-                        let mut relaunch_watch = self.session_manager.relaunch_watch.write().unwrap();
-                        let (count, last_time) = relaunch_watch.entry(exe_path.clone()).or_insert((0, Utc::now()));
-                        
+                        let mut relaunch_watch =
+                            self.session_manager.relaunch_watch.write().unwrap();
+                        let (count, last_time) = relaunch_watch
+                            .entry(exe_path.clone())
+                            .or_insert((0, Utc::now()));
+
                         if Utc::now().signed_duration_since(*last_time).num_seconds() < 10 {
                             *count += 1;
                             if *count >= 3 {
-                                self.app_handle.emit("relaunch_loop_detected", serde_json::json!({
-                                    "app_id": locked_app.id,
-                                    "app_name": locked_app.name,
-                                    "attempt_count": *count
-                                })).unwrap();
+                                self.app_handle
+                                    .emit(
+                                        "relaunch_loop_detected",
+                                        serde_json::json!({
+                                            "app_id": locked_app.id,
+                                            "app_name": locked_app.name,
+                                            "attempt_count": *count
+                                        }),
+                                    )
+                                    .unwrap();
                             }
                         } else {
                             *count = 1;
@@ -77,7 +108,10 @@ impl ProcessWatcher {
                         *last_time = Utc::now();
                     }
 
-                    println!("Detected locked app: {} (PID: {})", locked_app.name, pid_u32);
+                    println!(
+                        "Detected locked app: {} (PID: {})",
+                        locked_app.name, pid_u32
+                    );
                     self.trigger_lock(pid_u32, locked_app).await;
                 }
             }
@@ -87,16 +121,21 @@ impl ProcessWatcher {
     async fn trigger_lock(&self, pid: u32, app: LockedAppEntry) {
         if is_process_elevated(pid) {
             println!("Elevated app detected: {}", app.name);
-            self.app_handle.emit("elevated_app_detected", serde_json::json!({
-                "app_id": app.id,
-                "app_name": app.name,
-                "process_id": pid
-            })).unwrap();
+            self.app_handle
+                .emit(
+                    "elevated_app_detected",
+                    serde_json::json!({
+                        "app_id": app.id,
+                        "app_name": app.name,
+                        "process_id": pid
+                    }),
+                )
+                .unwrap();
         }
 
         let hwnds = window_manager::get_process_windows(pid);
         let state = self.app_handle.state::<Arc<crate::models::AppState>>();
-        
+
         let mut snapshots = Vec::new();
         for hwnd in &hwnds {
             if let Ok(_) = window_manager::freeze_window_logic(*hwnd, &state, &self.app_handle) {
@@ -122,19 +161,24 @@ impl ProcessWatcher {
 
         self.session_manager.add_session(session);
 
-        self.app_handle.emit("show_lock_overlay", serde_json::json!({
-            "app_id": app.id,
-            "app_name": app.name,
-            "process_id": pid,
-            "is_uwp": app.is_uwp
-        })).unwrap();
+        self.app_handle
+            .emit(
+                "show_lock_overlay",
+                serde_json::json!({
+                    "app_id": app.id,
+                    "app_name": app.name,
+                    "process_id": pid,
+                    "is_uwp": app.is_uwp
+                }),
+            )
+            .unwrap();
     }
 }
 
 fn is_process_elevated(pid: u32) -> bool {
     use windows::Win32::System::Threading::OpenProcess;
     use windows::Win32::System::Threading::PROCESS_QUERY_INFORMATION;
-    
+
     unsafe {
         let handle = match OpenProcess(PROCESS_QUERY_INFORMATION, false, pid) {
             Ok(h) => h,
@@ -149,14 +193,15 @@ fn is_process_elevated(pid: u32) -> bool {
 
         let mut elevation: TOKEN_ELEVATION = std::mem::zeroed();
         let mut size = std::mem::size_of::<TOKEN_ELEVATION>() as u32;
-        
+
         let success = GetTokenInformation(
             token,
             TokenElevation,
             Some(&mut elevation as *mut _ as *mut _),
             size,
             &mut size,
-        ).is_ok();
+        )
+        .is_ok();
 
         let _ = CloseHandle(token);
         let _ = CloseHandle(handle);
@@ -164,4 +209,3 @@ fn is_process_elevated(pid: u32) -> bool {
         success && elevation.TokenIsElevated != 0
     }
 }
-

@@ -1,5 +1,5 @@
-use tauri::AppHandle;
 use crate::secure_storage;
+use tauri::AppHandle;
 
 #[tauri::command]
 pub async fn verify_storage_integrity(app_handle: AppHandle) -> Result<bool, String> {
@@ -7,6 +7,8 @@ pub async fn verify_storage_integrity(app_handle: AppHandle) -> Result<bool, Str
 }
 
 #[tauri::command]
-pub async fn get_storage_status(app_handle: AppHandle) -> Result<secure_storage::StorageStatus, String> {
+pub async fn get_storage_status(
+    app_handle: AppHandle,
+) -> Result<secure_storage::StorageStatus, String> {
     secure_storage::get_storage_status_internal(app_handle).await
 }

@@ -1,10 +1,10 @@
 use windows::Win32::Foundation::{HWND, RECT};
-use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowRect, GetWindowLongW, GWL_STYLE, WS_CAPTION, WS_POPUP,
-    GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST,
-};
 use windows::Win32::Graphics::Gdi::{
-    MonitorFromWindow, GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO,
+    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
+use windows::Win32::UI::WindowsAndMessaging::{
+    GetWindowLongPtrW, GetWindowLongW, GetWindowRect, GWL_EXSTYLE, GWL_STYLE, WS_CAPTION,
+    WS_EX_TOPMOST, WS_POPUP,
 };
 pub fn detect_fullscreen(hwnd: HWND) -> bool {
     unsafe {
@@ -21,11 +21,11 @@ pub fn detect_fullscreen(hwnd: HWND) -> bool {
 
         if GetMonitorInfoW(monitor, &mut monitor_info).as_bool() {
             let m_rect = monitor_info.rcMonitor;
-            let is_same_size = window_rect.left == m_rect.left &&
-                               window_rect.top == m_rect.top &&
-                               window_rect.right == m_rect.right &&
-                               window_rect.bottom == m_rect.bottom;
-            
+            let is_same_size = window_rect.left == m_rect.left
+                && window_rect.top == m_rect.top
+                && window_rect.right == m_rect.right
+                && window_rect.bottom == m_rect.bottom;
+
             if is_same_size {
                 return true;
             }
@@ -35,8 +35,7 @@ pub fn detect_fullscreen(hwnd: HWND) -> bool {
             return true;
         }
         let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as usize;
-        if (ex_style & WS_EX_TOPMOST.0 as usize) != 0 {
-        }
+        if (ex_style & WS_EX_TOPMOST.0 as usize) != 0 {}
     }
     false
 }

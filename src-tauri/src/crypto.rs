@@ -2,8 +2,8 @@ use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
+use rand::{thread_rng, Rng};
 use sha2::{Digest, Sha256};
-use rand::{Rng, thread_rng};
 use std::fmt;
 
 pub enum CryptoError {
@@ -19,7 +19,9 @@ impl fmt::Display for CryptoError {
             CryptoError::KeyDerivationFailed(e) => write!(f, "Key derivation failed: {}", e),
             CryptoError::EncryptionFailed(e) => write!(f, "Encryption failed: {}", e),
             CryptoError::DecryptionFailed(e) => write!(f, "Decryption failed: {}", e),
-            CryptoError::IntegrityCheckFailed => write!(f, "File integrity check failed (Tampered)"),
+            CryptoError::IntegrityCheckFailed => {
+                write!(f, "File integrity check failed (Tampered)")
+            }
         }
     }
 }
@@ -42,7 +44,8 @@ pub fn calculate_checksum(data: &[u8]) -> [u8; 32] {
 }
 pub fn encrypt_with_integrity(plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let key_bytes = derive_encryption_key()?;
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
+        .map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
     let checksum = calculate_checksum(plaintext);
     let mut payload = Vec::with_capacity(32 + plaintext.len());
     payload.extend_from_slice(&checksum);
@@ -50,7 +53,8 @@ pub fn encrypt_with_integrity(plaintext: &[u8]) -> Result<Vec<u8>, CryptoError> 
     let mut nonce_bytes = [0u8; 12];
     thread_rng().fill(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
-    let ciphertext = cipher.encrypt(nonce, payload.as_ref())
+    let ciphertext = cipher
+        .encrypt(nonce, payload.as_ref())
         .map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
     let mut result = Vec::with_capacity(12 + ciphertext.len());
     result.extend_from_slice(&nonce_bytes);
@@ -63,14 +67,18 @@ pub fn decrypt_with_integrity(data: &[u8]) -> Result<Vec<u8>, CryptoError> {
     }
 
     let key_bytes = derive_encryption_key()?;
-    let cipher = Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| CryptoError::DecryptionFailed(e.to_string()))?;
+    let cipher = Aes256Gcm::new_from_slice(&key_bytes)
+        .map_err(|e| CryptoError::DecryptionFailed(e.to_string()))?;
     let (nonce_bytes, ciphertext) = data.split_at(12);
     let nonce = Nonce::from_slice(nonce_bytes);
-    let decrypted_payload = cipher.decrypt(nonce, ciphertext)
+    let decrypted_payload = cipher
+        .decrypt(nonce, ciphertext)
         .map_err(|e| CryptoError::DecryptionFailed(e.to_string()))?;
 
     if decrypted_payload.len() < 32 {
-        return Err(CryptoError::DecryptionFailed("Invalid decrypted payload".to_string()));
+        return Err(CryptoError::DecryptionFailed(
+            "Invalid decrypted payload".to_string(),
+        ));
     }
     let (stored_checksum, plaintext) = decrypted_payload.split_at(32);
     let calculated_checksum = calculate_checksum(plaintext);

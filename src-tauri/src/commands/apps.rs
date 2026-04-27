@@ -1,8 +1,8 @@
+use crate::models::{AppState, LockedApp};
+use crate::services::{detailed_scanner, process_win, scanner};
+use crate::utils::config::save_config;
 use std::sync::Arc;
 use tauri::State;
-use crate::models::{AppState, LockedApp};
-use crate::services::{scanner, process_win, detailed_scanner};
-use crate::utils::config::save_config;
 
 #[tauri::command]
 pub async fn get_detailed_apps() -> Result<Vec<detailed_scanner::DetailedApp>, String> {
@@ -41,7 +41,9 @@ pub async fn save_selection(
             .and_then(|f| f.to_str())
             .unwrap_or(&target_path)
             .to_lowercase();
-        let target_filename_no_exe = target_filename.strip_suffix(".exe").unwrap_or(&target_filename);
+        let target_filename_no_exe = target_filename
+            .strip_suffix(".exe")
+            .unwrap_or(&target_filename);
 
         for process in &processes {
             let proc_path_lower = process.path.to_lowercase();

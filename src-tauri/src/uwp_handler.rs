@@ -1,13 +1,18 @@
 use windows::core::HSTRING;
-pub struct IPackageDebugSettings; 
+pub struct IPackageDebugSettings;
 
 impl IPackageDebugSettings {
-    pub unsafe fn suspend(&self, _package_full_name: &HSTRING) -> windows::core::Result<()> { Ok(()) }
-    pub unsafe fn resume(&self, _package_full_name: &HSTRING) -> windows::core::Result<()> { Ok(()) }
+    pub unsafe fn suspend(&self, _package_full_name: &HSTRING) -> windows::core::Result<()> {
+        Ok(())
+    }
+    pub unsafe fn resume(&self, _package_full_name: &HSTRING) -> windows::core::Result<()> {
+        Ok(())
+    }
 }
 
 pub fn is_uwp_app(path: &str) -> bool {
-    path.to_lowercase().contains("c:\\program files\\windowsapps\\")
+    path.to_lowercase()
+        .contains("c:\\program files\\windowsapps\\")
 }
 
 pub struct UwpHandler {
@@ -16,13 +21,16 @@ pub struct UwpHandler {
 
 impl UwpHandler {
     pub fn new() -> Self {
-        UwpHandler { debug_settings: None }
+        UwpHandler {
+            debug_settings: None,
+        }
     }
 
     pub fn suspend_app(&self, package_family_name: &str) -> Result<(), String> {
         if let Some(settings) = &self.debug_settings {
             unsafe {
-                settings.suspend(&HSTRING::from(package_family_name))
+                settings
+                    .suspend(&HSTRING::from(package_family_name))
                     .map_err(|e| e.to_string())
             }
         } else {
@@ -33,7 +41,8 @@ impl UwpHandler {
     pub fn resume_app(&self, package_family_name: &str) -> Result<(), String> {
         if let Some(settings) = &self.debug_settings {
             unsafe {
-                settings.resume(&HSTRING::from(package_family_name))
+                settings
+                    .resume(&HSTRING::from(package_family_name))
                     .map_err(|e| e.to_string())
             }
         } else {

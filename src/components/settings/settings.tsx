@@ -9,6 +9,7 @@ import { SecurityPolicy } from "./SecurityPolicy";
 import { SystemStyle } from "./SystemStyle";
 import { Contribution } from "./Contribution";
 import { Credits } from "./Credits";
+import { UpdatesSection } from "./UpdatesSection";
 
 interface SettingsPageProps {
   appName: string;
@@ -83,6 +84,15 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         >
           <Star size={18} /> Credits
         </button>
+        <button
+          className={clsx(
+            styles.settingsNavBtn,
+            settingsTab === "updates" && styles.settingsNavBtnActive
+          )}
+          onClick={() => setSettingsTab("updates")}
+        >
+          <RotateCcw size={18} /> Updates
+        </button>
         <div style={{ flex: 1 }} />
         <button
           className={styles.dangerBtnMinimal}
@@ -125,6 +135,8 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
         {settingsTab === "contribution" && <Contribution appName={appName} />}
 
         {settingsTab === "credits" && <Credits appName={appName} />}
+
+        {settingsTab === "updates" && <UpdatesSection appName={appName} />}
       </div>
     </div>
   );

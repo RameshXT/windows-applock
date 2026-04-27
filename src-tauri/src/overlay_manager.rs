@@ -1,16 +1,16 @@
-use windows::Win32::Foundation::{HWND, RECT, LPARAM};
+use crate::lock_session::{MonitorInfo, Rect};
 use windows::core::BOOL;
-use windows::Win32::UI::WindowsAndMessaging::{
-    SetWindowPos, HWND_TOPMOST, SWP_SHOWWINDOW, SWP_NOACTIVATE, SetForegroundWindow,
-    BringWindowToTop, GetWindowRect, GetWindowLongPtrW, GWL_EXSTYLE, WS_EX_TOPMOST,
-    SWP_NOSIZE, SWP_NOMOVE,
-};
+use windows::Win32::Foundation::{HWND, LPARAM, RECT};
 use windows::Win32::Graphics::Gdi::{
-    HDC, MonitorFromRect, MONITOR_DEFAULTTONEAREST,
-    EnumDisplayMonitors, GetMonitorInfoW, MONITORINFOEXW, HMONITOR,
+    EnumDisplayMonitors, GetMonitorInfoW, MonitorFromRect, HDC, HMONITOR, MONITORINFOEXW,
+    MONITOR_DEFAULTTONEAREST,
 };
 use windows::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
-use crate::lock_session::{MonitorInfo, Rect};
+use windows::Win32::UI::WindowsAndMessaging::{
+    BringWindowToTop, GetWindowLongPtrW, GetWindowRect, SetForegroundWindow, SetWindowPos,
+    GWL_EXSTYLE, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+    WS_EX_TOPMOST,
+};
 
 pub fn enumerate_monitors() -> Result<Vec<MonitorInfo>, String> {
     let mut monitors: Vec<MonitorInfo> = Vec::new();
@@ -32,7 +32,7 @@ extern "system" fn monitor_enum_proc(
     lparam: LPARAM,
 ) -> BOOL {
     let monitors = unsafe { &mut *(lparam.0 as *mut Vec<MonitorInfo>) };
-    
+
     let mut info = MONITORINFOEXW {
         monitorInfo: windows::Win32::Graphics::Gdi::MONITORINFO {
             cbSize: std::mem::size_of::<MONITORINFOEXW>() as u32,
@@ -74,7 +74,7 @@ pub fn get_window_monitor(hwnd: HWND) -> Result<MonitorInfo, String> {
         let mut rect = RECT::default();
         let _ = GetWindowRect(hwnd, &mut rect);
         let hmonitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONEAREST);
-        
+
         let mut info = MONITORINFOEXW {
             monitorInfo: windows::Win32::Graphics::Gdi::MONITORINFO {
                 cbSize: std::mem::size_of::<MONITORINFOEXW>() as u32,
@@ -121,7 +121,8 @@ pub fn position_overlay(overlay_hwnd: HWND, monitor: &MonitorInfo) -> Result<(),
             monitor.full_rect.right - monitor.full_rect.left,
             monitor.full_rect.bottom - monitor.full_rect.top,
             SWP_SHOWWINDOW | SWP_NOACTIVATE,
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
 
         let _ = SetForegroundWindow(overlay_hwnd);
         let _ = BringWindowToTop(overlay_hwnd);
@@ -136,9 +137,13 @@ pub fn assert_topmost(overlay_hwnd: HWND) -> Result<(), String> {
             SetWindowPos(
                 overlay_hwnd,
                 Some(HWND_TOPMOST),
-                0, 0, 0, 0,
+                0,
+                0,
+                0,
+                0,
                 SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE,
-            ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
         }
     }
     Ok(())

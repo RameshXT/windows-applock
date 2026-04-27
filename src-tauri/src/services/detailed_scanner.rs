@@ -1,11 +1,11 @@
-use std::os::windows::process::CommandExt;
+use base64::{engine::general_purpose, Engine as _};
+use image::ImageFormat;
 use serde::Serialize;
+use std::io::Cursor;
+use std::os::windows::process::CommandExt;
+use std::path::Path;
 use winreg::enums::*;
 use winreg::RegKey;
-use std::path::Path;
-use base64::{Engine as _, engine::general_purpose};
-use std::io::Cursor;
-use image::ImageFormat;
 const SKIP_PREFIXES: &[&str] = &[
     "Microsoft.Windows.",
     "Microsoft.UI.",
@@ -36,10 +36,22 @@ pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
     let mut apps = Vec::new();
     let mut seen_names = std::collections::HashSet::new();
     let registry_paths = [
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-        (HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-        (HKEY_CURRENT_USER, "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
-        (HKEY_CURRENT_USER, "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
+        (
+            HKEY_LOCAL_MACHINE,
+            "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            "Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ),
     ];
 
     for (root, path) in registry_paths {
@@ -59,12 +71,21 @@ pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
                     if system_component == 1 {
                         continue;
                     }
-                    let install_location: String = sub_key.get_value("InstallLocation").unwrap_or_default();
+                    let install_location: String =
+                        sub_key.get_value("InstallLocation").unwrap_or_default();
                     if install_location.to_lowercase().contains("\\systemapps\\")
-                        || install_location.to_lowercase().contains("\\windowsapps\\microsoft.windows.")
-                        || install_location.to_lowercase().contains("\\windowsapps\\microsoft.ui.")
-                        || install_location.to_lowercase().contains("\\windowsapps\\microsoft.net.")
-                        || install_location.to_lowercase().contains("\\windowsapps\\microsoftwindows.")
+                        || install_location
+                            .to_lowercase()
+                            .contains("\\windowsapps\\microsoft.windows.")
+                        || install_location
+                            .to_lowercase()
+                            .contains("\\windowsapps\\microsoft.ui.")
+                        || install_location
+                            .to_lowercase()
+                            .contains("\\windowsapps\\microsoft.net.")
+                        || install_location
+                            .to_lowercase()
+                            .contains("\\windowsapps\\microsoftwindows.")
                     {
                         continue;
                     }
@@ -127,7 +148,9 @@ pub async fn get_detailed_apps_inner() -> Result<Vec<DetailedApp>, String> {
                     continue;
                 }
                 let ps_display_name = entry["DisplayName"].as_str().unwrap_or("");
-                let display_name = if !ps_display_name.is_empty() && !ps_display_name.starts_with("ms-resource:") {
+                let display_name = if !ps_display_name.is_empty()
+                    && !ps_display_name.starts_with("ms-resource:")
+                {
                     ps_display_name.to_string()
                 } else {
                     get_appx_display_name(&install_location, &pkg_name)
@@ -194,7 +217,14 @@ fn get_appx_display_name(install_location: &str, package_name: &str) -> String {
     let after_dot = package_name.splitn(2, '.').nth(1).unwrap_or(package_name);
     let mut readable = String::new();
     for (i, ch) in after_dot.chars().enumerate() {
-        if i > 0 && ch.is_uppercase() && !after_dot.chars().nth(i - 1).map(|c| c.is_uppercase()).unwrap_or(false) {
+        if i > 0
+            && ch.is_uppercase()
+            && !after_dot
+                .chars()
+                .nth(i - 1)
+                .map(|c| c.is_uppercase())
+                .unwrap_or(false)
+        {
             readable.push(' ');
         }
         readable.push(ch);
@@ -228,7 +258,9 @@ fn find_appx_icon(install_location: &str) -> String {
 fn extract_icon_to_base64(path: &str) -> Option<String> {
     let clean_path = path.split(',').next()?.trim_matches('"');
     let p = Path::new(clean_path);
-    if !p.exists() { return None; }
+    if !p.exists() {
+        return None;
+    }
     let lower = clean_path.to_lowercase();
     if lower.ends_with(".ico") || lower.ends_with(".png") || lower.ends_with(".jpg") {
         return load_image_to_base64(clean_path);
@@ -240,27 +272,41 @@ fn extract_icon_to_base64(path: &str) -> Option<String> {
 }
 
 fn extract_exe_icon(path: &str) -> Option<String> {
-    use windows::Win32::UI::Shell::ExtractIconExW;
-    use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICONINFO};
-    use windows::Win32::Graphics::Gdi::{
-        GetDIBits, CreateCompatibleDC, DeleteDC, DeleteObject,
-        BITMAPINFOHEADER, BITMAPINFO, DIB_RGB_COLORS, BI_RGB, HGDIOBJ,
-    };
-    use windows::core::PCWSTR;
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Graphics::Gdi::{
+        CreateCompatibleDC, DeleteDC, DeleteObject, GetDIBits, BITMAPINFO, BITMAPINFOHEADER,
+        BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
+    };
+    use windows::Win32::UI::Shell::ExtractIconExW;
+    use windows::Win32::UI::WindowsAndMessaging::{DestroyIcon, GetIconInfo, ICONINFO};
 
     let wide: Vec<u16> = OsStr::new(path).encode_wide().chain(Some(0)).collect();
     let mut large_icon = windows::Win32::UI::WindowsAndMessaging::HICON::default();
     let mut small_icon = windows::Win32::UI::WindowsAndMessaging::HICON::default();
 
     let count = unsafe {
-        ExtractIconExW(PCWSTR(wide.as_ptr()), 0, Some(&mut large_icon), Some(&mut small_icon), 1)
+        ExtractIconExW(
+            PCWSTR(wide.as_ptr()),
+            0,
+            Some(&mut large_icon),
+            Some(&mut small_icon),
+            1,
+        )
     };
-    if count == 0 { return None; }
+    if count == 0 {
+        return None;
+    }
 
-    let hicon = if !large_icon.is_invalid() { large_icon } else { small_icon };
-    if hicon.is_invalid() { return None; }
+    let hicon = if !large_icon.is_invalid() {
+        large_icon
+    } else {
+        small_icon
+    };
+    if hicon.is_invalid() {
+        return None;
+    }
 
     let result = (|| -> Option<String> {
         let mut icon_info = ICONINFO::default();
@@ -280,22 +326,47 @@ fn extract_exe_icon(path: &str) -> Option<String> {
         };
         let mut pixels = vec![0u8; 32 * 32 * 4];
         let lines = unsafe {
-            GetDIBits(hdc, icon_info.hbmColor, 0, 32, Some(pixels.as_mut_ptr() as *mut _), &mut bmi, DIB_RGB_COLORS)
+            GetDIBits(
+                hdc,
+                icon_info.hbmColor,
+                0,
+                32,
+                Some(pixels.as_mut_ptr() as *mut _),
+                &mut bmi,
+                DIB_RGB_COLORS,
+            )
         };
-        unsafe { let _ = DeleteDC(hdc); };
-        unsafe { let _ = DeleteObject(HGDIOBJ(icon_info.hbmColor.0)); };
-        unsafe { let _ = DeleteObject(HGDIOBJ(icon_info.hbmMask.0)); };
-        if lines == 0 { return None; }
-        for chunk in pixels.chunks_exact_mut(4) { chunk.swap(0, 2); }
+        unsafe {
+            let _ = DeleteDC(hdc);
+        };
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(icon_info.hbmColor.0));
+        };
+        unsafe {
+            let _ = DeleteObject(HGDIOBJ(icon_info.hbmMask.0));
+        };
+        if lines == 0 {
+            return None;
+        }
+        for chunk in pixels.chunks_exact_mut(4) {
+            chunk.swap(0, 2);
+        }
         let img = image::RgbaImage::from_raw(32, 32, pixels)?;
         let dynamic = image::DynamicImage::ImageRgba8(img);
         let mut buffer = Cursor::new(Vec::new());
         dynamic.write_to(&mut buffer, ImageFormat::Png).ok()?;
-        Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buffer.get_ref())))
+        Some(format!(
+            "data:image/png;base64,{}",
+            general_purpose::STANDARD.encode(buffer.get_ref())
+        ))
     })();
 
-    unsafe { let _ = DestroyIcon(large_icon); };
-    unsafe { let _ = DestroyIcon(small_icon); };
+    unsafe {
+        let _ = DestroyIcon(large_icon);
+    };
+    unsafe {
+        let _ = DestroyIcon(small_icon);
+    };
     result
 }
 
@@ -303,5 +374,8 @@ fn load_image_to_base64(path: &str) -> Option<String> {
     let img = image::open(path).ok()?;
     let mut buffer = Cursor::new(Vec::new());
     img.write_to(&mut buffer, ImageFormat::Png).ok()?;
-    Some(format!("data:image/png;base64,{}", general_purpose::STANDARD.encode(buffer.get_ref())))
+    Some(format!(
+        "data:image/png;base64,{}",
+        general_purpose::STANDARD.encode(buffer.get_ref())
+    ))
 }

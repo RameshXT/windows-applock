@@ -1,5 +1,5 @@
-use serde::{Serialize, Deserialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
@@ -7,10 +7,10 @@ use std::sync::{Arc, RwLock};
 pub struct LockedAppEntry {
     pub id: String,
     pub name: String,
-    pub executable_path: String,     
-    pub executable_name: String,      
-    pub is_uwp: bool,                 
-    pub package_family_name: String,  
+    pub executable_path: String,
+    pub executable_name: String,
+    pub is_uwp: bool,
+    pub package_family_name: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -25,9 +25,9 @@ use crate::window_manager::WindowSnapshot;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MonitorInfo {
-    pub handle: isize,                    
-    pub work_area: Rect,                  
-    pub full_rect: Rect,                  
+    pub handle: isize,
+    pub work_area: Rect,
+    pub full_rect: Rect,
     pub is_primary: bool,
     pub dpi: u32,
 }
@@ -35,7 +35,7 @@ pub struct MonitorInfo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum FreezeResult {
     Success,
-    PartialSuccess { reason: String }, 
+    PartialSuccess { reason: String },
     Failed { reason: String },
 }
 
@@ -83,10 +83,10 @@ pub enum LockEngineError {
 }
 
 pub struct LockSessionManager {
-    pub active_sessions: Arc<RwLock<HashMap<u32, ActiveLockSession>>>, 
+    pub active_sessions: Arc<RwLock<HashMap<u32, ActiveLockSession>>>,
     pub locked_apps: Arc<RwLock<Vec<LockedAppEntry>>>,
     pub watcher_state: Arc<RwLock<WatcherState>>,
-    pub relaunch_watch: Arc<RwLock<HashMap<String, (u32, DateTime<Utc>)>>>, 
+    pub relaunch_watch: Arc<RwLock<HashMap<String, (u32, DateTime<Utc>)>>>,
     pub rehider_tasks: Arc<RwLock<HashMap<u32, tokio::task::JoinHandle<()>>>>,
     pub overlay_tasks: Arc<RwLock<HashMap<u32, tokio::task::JoinHandle<()>>>>,
 }
@@ -127,6 +127,9 @@ impl LockSessionManager {
     pub fn is_app_locked(&self, path: &str) -> Option<LockedAppEntry> {
         let locked = self.locked_apps.read().unwrap();
         let path_lower = path.to_lowercase();
-        locked.iter().find(|a| a.executable_path == path_lower).cloned()
+        locked
+            .iter()
+            .find(|a| a.executable_path == path_lower)
+            .cloned()
     }
 }

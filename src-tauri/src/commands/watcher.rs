@@ -1,9 +1,12 @@
-use tauri::{AppHandle, State, Emitter};
-use crate::lock_session::{LockSessionManager, WatcherState, ActiveLockSession, LockedAppEntry};
+use crate::lock_session::{ActiveLockSession, LockSessionManager, LockedAppEntry, WatcherState};
 use std::sync::Arc;
+use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
-pub async fn start_watcher(_app_handle: AppHandle, session_manager: State<'_, Arc<LockSessionManager>>) -> Result<(), String> {
+pub async fn start_watcher(
+    _app_handle: AppHandle,
+    session_manager: State<'_, Arc<LockSessionManager>>,
+) -> Result<(), String> {
     let mut state = session_manager.watcher_state.write().unwrap();
     *state = WatcherState::Running;
     Ok(())
@@ -31,12 +34,16 @@ pub fn resume_watcher(session_manager: State<'_, Arc<LockSessionManager>>) -> Re
 }
 
 #[tauri::command]
-pub fn get_watcher_state(session_manager: State<'_, Arc<LockSessionManager>>) -> Result<WatcherState, String> {
+pub fn get_watcher_state(
+    session_manager: State<'_, Arc<LockSessionManager>>,
+) -> Result<WatcherState, String> {
     Ok(*session_manager.watcher_state.read().unwrap())
 }
 
 #[tauri::command]
-pub fn get_active_lock_sessions(session_manager: State<'_, Arc<LockSessionManager>>) -> Result<Vec<ActiveLockSession>, String> {
+pub fn get_active_lock_sessions(
+    session_manager: State<'_, Arc<LockSessionManager>>,
+) -> Result<Vec<ActiveLockSession>, String> {
     let sessions = session_manager.active_sessions.read().unwrap();
     Ok(sessions.values().cloned().collect())
 }
@@ -49,20 +56,26 @@ pub async fn unlock_app(
     state: State<'_, Arc<crate::models::AppState>>,
 ) -> Result<(), String> {
     let session = session_manager.remove_session(process_id);
-    
+
     if let Some(session) = session {
         for snapshot in session.snapshots {
             let _ = crate::window_manager::restore_locked_window(
                 state.clone(),
                 app_handle.clone(),
-                snapshot.hwnd
-            ).await;
+                snapshot.hwnd,
+            )
+            .await;
         }
     }
 
-    app_handle.emit("app_unlocked", serde_json::json!({
-        "process_id": process_id
-    })).unwrap();
+    app_handle
+        .emit(
+            "app_unlocked",
+            serde_json::json!({
+                "process_id": process_id
+            }),
+        )
+        .unwrap();
 
     Ok(())
 }
@@ -70,7 +83,7 @@ pub async fn unlock_app(
 #[tauri::command]
 pub fn add_portable_app(
     exe_path: String,
-    session_manager: State<'_, Arc<LockSessionManager>>
+    session_manager: State<'_, Arc<LockSessionManager>>,
 ) -> Result<LockedAppEntry, String> {
     let path = std::path::Path::new(&exe_path);
     if !path.exists() {
@@ -79,9 +92,17 @@ pub fn add_portable_app(
 
     let entry = LockedAppEntry {
         id: uuid::Uuid::new_v4().to_string(),
-        name: path.file_stem().unwrap_or_default().to_string_lossy().to_string(),
+        name: path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string(),
         executable_path: exe_path.to_lowercase(),
-        executable_name: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
+        executable_name: path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string(),
         is_uwp: false,
         package_family_name: String::new(),
     };

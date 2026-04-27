@@ -1,14 +1,14 @@
+use crate::models::{AppState, AuthMode};
+use crate::services::{auth, security};
+use crate::utils::config::save_config;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
-use crate::models::{AppState, AuthMode};
-use crate::services::{security, auth};
-use crate::utils::config::save_config;
 #[tauri::command]
 pub async fn check_setup(state: State<'_, Arc<AppState>>) -> Result<bool, String> {
     let config = state.config.lock().unwrap();
     let is_onboarded = config.onboarding_completed.unwrap_or(false);
     let has_password = !config.hashed_password.is_empty();
-    
+
     Ok(is_onboarded && has_password)
 }
 #[tauri::command]

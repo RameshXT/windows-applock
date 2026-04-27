@@ -1,15 +1,15 @@
-use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE, FALSE, MAX_PATH};
-use windows_sys::Win32::System::Threading::{
-    OpenProcess, OpenThread, ResumeThread, SuspendThread, TerminateProcess,
-    PROCESS_TERMINATE, THREAD_SUSPEND_RESUME, THREAD_QUERY_INFORMATION,
-    PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
-};
-use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use windows_sys::Win32::Foundation::{CloseHandle, FALSE, INVALID_HANDLE_VALUE, MAX_PATH};
 use windows_sys::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, TH32CS_SNAPTHREAD, TH32CS_SNAPPROCESS, PROCESSENTRY32,
-    Process32First, Process32Next, Thread32First, Thread32Next, THREADENTRY32,
+    CreateToolhelp32Snapshot, Process32First, Process32Next, Thread32First, Thread32Next,
+    PROCESSENTRY32, TH32CS_SNAPPROCESS, TH32CS_SNAPTHREAD, THREADENTRY32,
 };
 use windows_sys::Win32::System::ProcessStatus::K32GetModuleFileNameExA;
+use windows_sys::Win32::System::Threading::{
+    OpenProcess, OpenThread, ResumeThread, SuspendThread, TerminateProcess,
+    PROCESS_QUERY_INFORMATION, PROCESS_TERMINATE, PROCESS_VM_READ, THREAD_QUERY_INFORMATION,
+    THREAD_SUSPEND_RESUME,
+};
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 
 pub fn suspend_process(pid: u32) -> Result<(), String> {
     unsafe {
@@ -147,7 +147,9 @@ pub fn get_processes() -> Vec<ProcessInfo> {
         if Process32First(snapshot, &mut pe) != FALSE {
             loop {
                 let pid = pe.th32ProcessID;
-                let name = pe.szExeFile.iter()
+                let name = pe
+                    .szExeFile
+                    .iter()
                     .take_while(|&&c| c != 0)
                     .map(|&c| c as u8 as char)
                     .collect::<String>();
@@ -156,7 +158,12 @@ pub fn get_processes() -> Vec<ProcessInfo> {
                 let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, pid);
                 if handle != std::ptr::null_mut() {
                     let mut buffer = [0u8; MAX_PATH as usize];
-                    let size = K32GetModuleFileNameExA(handle, std::ptr::null_mut(), buffer.as_mut_ptr(), MAX_PATH);
+                    let size = K32GetModuleFileNameExA(
+                        handle,
+                        std::ptr::null_mut(),
+                        buffer.as_mut_ptr(),
+                        MAX_PATH,
+                    );
                     if size > 0 {
                         path = String::from_utf8_lossy(&buffer[..size as usize]).to_string();
                     }

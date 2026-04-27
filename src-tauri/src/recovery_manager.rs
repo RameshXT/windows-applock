@@ -1,16 +1,16 @@
-use crate::models::state::AppState;
-use crate::secure_storage::{read_encrypted_internal, write_encrypted_internal, log_event};
 use crate::credential_verifier::verify_internal;
+use crate::models::state::AppState;
+use crate::secure_storage::{log_event, read_encrypted_internal, write_encrypted_internal};
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2,
 };
-use chrono::{Utc, Duration as ChronoDuration};
+use chrono::{Duration as ChronoDuration, Utc};
 use rand::{thread_rng, Rng};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State, Emitter};
+use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
 const RECOVERY_FILE: &str = "recovery.enc";
@@ -137,14 +137,18 @@ pub async fn verify_recovery_key(
         let _ = clear_hard_lock(&app_id, &state);
         let _ = clear_cooldown(&app_id, &state);
         if app_id != "dashboard_lock" {
-             let app_name = {
+            let app_name = {
                 let config = state.config.lock().unwrap();
-                config.locked_apps.iter()
+                config
+                    .locked_apps
+                    .iter()
                     .find(|a| a.id == app_id)
                     .map(|a| a.name.clone())
                     .unwrap_or_else(|| "Unknown App".to_string())
             };
-            let _ = crate::grace_manager::start_grace_session(&app_id, &app_name, app_handle.clone()).await;
+            let _ =
+                crate::grace_manager::start_grace_session(&app_id, &app_name, app_handle.clone())
+                    .await;
         }
         let _ = log_event(
             &app_handle,
@@ -152,9 +156,18 @@ pub async fn verify_recovery_key(
             &format!("Access restored for app: {}", app_id),
         )
         .await;
-        let _ = app_handle.emit("recovery_key_verified", serde_json::json!({ "app_id": app_id, "success": true }));
-        let _ = app_handle.emit("access_restored_via_recovery", serde_json::json!({ "app_id": app_id, "restored_at": Utc::now().to_rfc3339() }));
-        let _ = app_handle.emit("fail_counter_reset", serde_json::json!({ "app_id": app_id }));
+        let _ = app_handle.emit(
+            "recovery_key_verified",
+            serde_json::json!({ "app_id": app_id, "success": true }),
+        );
+        let _ = app_handle.emit(
+            "access_restored_via_recovery",
+            serde_json::json!({ "app_id": app_id, "restored_at": Utc::now().to_rfc3339() }),
+        );
+        let _ = app_handle.emit(
+            "fail_counter_reset",
+            serde_json::json!({ "app_id": app_id }),
+        );
         let _ = app_handle.emit("hard_lock_cleared", serde_json::json!({ "app_id": app_id }));
 
         Ok(RecoveryResult {
@@ -173,7 +186,10 @@ pub async fn verify_recovery_key(
             (counter.0, counter.1)
         };
 
-        let _ = app_handle.emit("recovery_key_verified", serde_json::json!({ "app_id": app_id, "success": false }));
+        let _ = app_handle.emit(
+            "recovery_key_verified",
+            serde_json::json!({ "app_id": app_id, "success": false }),
+        );
 
         Ok(RecoveryResult {
             success: false,
@@ -196,12 +212,17 @@ pub async fn initiate_full_reset(
     let verified = if method == "credential" {
         verify_internal(&app_handle, &input).await.unwrap_or(false)
     } else if method == "recovery_key" {
-        verify_recovery_key_internal(&input, &app_handle).await.unwrap_or(false)
+        verify_recovery_key_internal(&input, &app_handle)
+            .await
+            .unwrap_or(false)
     } else {
         false
     };
 
-    let _ = app_handle.emit("full_reset_initiated", serde_json::json!({ "method": method, "verified": verified }));
+    let _ = app_handle.emit(
+        "full_reset_initiated",
+        serde_json::json!({ "method": method, "verified": verified }),
+    );
 
     if verified {
         let token = generate_reset_token();
@@ -236,10 +257,13 @@ pub async fn perform_full_reset(
         return Err(RecoveryError::InvalidToken.into());
     }
     let result = wipe_all_data(&state, &app_handle);
-    let _ = app_handle.emit("full_reset_complete", serde_json::json!({
-        "files_deleted": result.files_deleted.len(),
-        "restarting_onboarding": true
-    }));
+    let _ = app_handle.emit(
+        "full_reset_complete",
+        serde_json::json!({
+            "files_deleted": result.files_deleted.len(),
+            "restarting_onboarding": true
+        }),
+    );
 
     Ok(result)
 }
@@ -250,15 +274,18 @@ pub async fn store_recovery_key_hash(
     app_handle: AppHandle,
 ) -> Result<(), String> {
     hash_and_store_recovery_key(&raw_key, &app_handle)?;
-    
-    let _ = app_handle.emit("recovery_key_stored", serde_json::json!({ "stored_at": Utc::now().to_rfc3339() }));
-    
+
+    let _ = app_handle.emit(
+        "recovery_key_stored",
+        serde_json::json!({ "stored_at": Utc::now().to_rfc3339() }),
+    );
+
     Ok(())
 }
 pub fn generate_recovery_key() -> String {
     let mut rng = thread_rng();
     let chars: Vec<char> = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ".chars().collect();
-    
+
     let mut groups = Vec::new();
     for _ in 0..5 {
         let group: String = (0..4)
@@ -269,14 +296,14 @@ pub fn generate_recovery_key() -> String {
             .collect();
         groups.push(group);
     }
-    
+
     groups.join("-")
 }
 fn hash_and_store_recovery_key(raw: &str, app_handle: &AppHandle) -> Result<(), RecoveryError> {
     let normalized = normalize_recovery_key(raw);
     let salt = SaltString::generate(&mut thread_rng());
     let argon2 = Argon2::default();
-    
+
     let password_hash = argon2
         .hash_password(normalized.as_bytes(), &salt)
         .map_err(|e| RecoveryError::HashFailed(e.to_string()))?
@@ -285,7 +312,10 @@ fn hash_and_store_recovery_key(raw: &str, app_handle: &AppHandle) -> Result<(), 
     write_encrypted_internal(app_handle, RECOVERY_FILE, &password_hash)
         .map_err(|e| RecoveryError::StorageError(e.to_string()))
 }
-async fn verify_recovery_key_internal(input: &str, app_handle: &AppHandle) -> Result<bool, RecoveryError> {
+async fn verify_recovery_key_internal(
+    input: &str,
+    app_handle: &AppHandle,
+) -> Result<bool, RecoveryError> {
     let normalized = normalize_recovery_key(input);
     let stored_hash: String = read_encrypted_internal(app_handle, RECOVERY_FILE)
         .map_err(|e| RecoveryError::StorageError(e.to_string()))?;
@@ -296,7 +326,9 @@ async fn verify_recovery_key_internal(input: &str, app_handle: &AppHandle) -> Re
             .verify_password(normalized.as_bytes(), &parsed_hash)
             .map(|_| true)
             .map_err(|_| ())
-    }).await.map_err(|_| RecoveryError::VerifyFailed)?
+    })
+    .await
+    .map_err(|_| RecoveryError::VerifyFailed)?
     .unwrap_or(false);
 
     Ok(is_valid)
@@ -355,7 +387,10 @@ fn wipe_all_data(state: &AppState, app_handle: &AppHandle) -> ResetResult {
         use winreg::enums::*;
         use winreg::RegKey;
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-        if let Ok(key) = hkcu.open_subkey_with_flags("Software\\Microsoft\\Windows\\CurrentVersion\\Run", KEY_WRITE) {
+        if let Ok(key) = hkcu.open_subkey_with_flags(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+            KEY_WRITE,
+        ) {
             if key.delete_value("AppLock").is_ok() {
                 registry_cleared = true;
             }

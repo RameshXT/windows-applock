@@ -1,11 +1,15 @@
-    use tauri::AppHandle;
+
 use crate::credential_manager;
+use tauri::AppHandle;
 
 #[tauri::command]
-pub async fn set_credential(app_handle: AppHandle, pin_or_password: String, cred_type: String) -> Result<(), String> {
+pub async fn set_credential(
+    app_handle: AppHandle,
+    pin_or_password: String,
+    cred_type: String,
+) -> Result<(), String> {
     credential_manager::set_credential_internal(&app_handle, pin_or_password, cred_type)
 }
-
 
 #[tauri::command]
 pub async fn update_credential(

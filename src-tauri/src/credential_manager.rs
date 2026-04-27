@@ -1,19 +1,19 @@
-use argon2::{
-    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
-    Argon2,
-};
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
+use argon2::{
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
+    Argon2,
+};
 use chrono::Utc;
+use lazy_static::lazy_static;
 use machine_uid;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use lazy_static::lazy_static;
 
 lazy_static! {
     static ref REHASH_NEEDED: Mutex<bool> = Mutex::new(false);
@@ -53,7 +53,7 @@ fn get_encryption_key() -> Result<[u8; 32], String> {
 fn encrypt_data(data: &[u8]) -> Result<Vec<u8>, String> {
     let key_bytes = get_encryption_key()?;
     let key = Aes256Gcm::new_from_slice(&key_bytes).map_err(|e| e.to_string())?;
-    let nonce_bytes = [0u8; 12]; 
+    let nonce_bytes = [0u8; 12];
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = key.encrypt(nonce, data).map_err(|e| e.to_string())?;
     Ok(ciphertext)
@@ -69,7 +69,8 @@ fn decrypt_data(data: &[u8]) -> Result<Vec<u8>, String> {
 
 fn get_app_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     app_handle
-        .path().app_data_dir()
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))
 }
 fn validate_alphanumeric(password: &str) -> Result<(), String> {
@@ -88,17 +89,26 @@ fn validate_pin(pin: &str, length: usize) -> Result<(), String> {
     if !pin.chars().all(|c| c.is_digit(10)) {
         return Err("PIN must contain only digits".to_string());
     }
-    let common_pins = vec!["0000", "1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999", "1234"];
+    let common_pins = vec![
+        "0000", "1111", "2222", "3333", "4444", "5555", "6666", "7777", "8888", "9999", "1234",
+    ];
     if length == 4 && common_pins.contains(&pin) {
         return Err("Common PINs are not allowed".to_string());
     }
-    let digits: Vec<i32> = pin.chars().map(|c| c.to_digit(10).unwrap() as i32).collect();
+    let digits: Vec<i32> = pin
+        .chars()
+        .map(|c| c.to_digit(10).unwrap() as i32)
+        .collect();
     let mut incremental = true;
     let mut decremental = true;
 
     for i in 1..digits.len() {
-        if digits[i] != digits[i - 1] + 1 { incremental = false; }
-        if digits[i] != digits[i - 1] - 1 { decremental = false; }
+        if digits[i] != digits[i - 1] + 1 {
+            incremental = false;
+        }
+        if digits[i] != digits[i - 1] - 1 {
+            decremental = false;
+        }
     }
 
     if incremental || decremental {
@@ -110,7 +120,7 @@ fn validate_pin(pin: &str, length: usize) -> Result<(), String> {
 fn log_action(app_handle: &AppHandle, action: &str, cred_type: &str) -> Result<(), String> {
     let app_dir = get_app_dir(app_handle)?;
     let log_path = app_dir.join(LOG_FILE);
-    
+
     let mut logs: Vec<CredentialLog> = if log_path.exists() {
         let encrypted = fs::read(&log_path).map_err(|e| e.to_string())?;
         let decrypted = decrypt_data(&encrypted)?;
@@ -131,7 +141,11 @@ fn log_action(app_handle: &AppHandle, action: &str, cred_type: &str) -> Result<(
 
     Ok(())
 }
-pub fn set_credential_internal(app_handle: &AppHandle, pin_or_password: String, cred_type: String) -> Result<(), String> {
+pub fn set_credential_internal(
+    app_handle: &AppHandle,
+    pin_or_password: String,
+    cred_type: String,
+) -> Result<(), String> {
     match cred_type.as_str() {
         "pin_4" => validate_pin(&pin_or_password, 4)?,
         "pin_6" => validate_pin(&pin_or_password, 6)?,
@@ -176,7 +190,8 @@ pub fn verify_credential_internal(app_handle: &AppHandle, input: String) -> Resu
 
     let encrypted = fs::read(&config_path).map_err(|e| e.to_string())?;
     let decrypted = decrypt_data(&encrypted)?;
-    let mut config: CredentialConfig = serde_json::from_slice(&decrypted).map_err(|e| e.to_string())?;
+    let mut config: CredentialConfig =
+        serde_json::from_slice(&decrypted).map_err(|e| e.to_string())?;
 
     let parsed_hash = PasswordHash::new(&config.hash).map_err(|e| e.to_string())?;
     let is_valid = Argon2::default()
@@ -198,14 +213,19 @@ pub fn verify_credential_internal(app_handle: &AppHandle, input: String) -> Resu
             let json = serde_json::to_vec(&config).map_err(|e| e.to_string())?;
             let encrypted = encrypt_data(&json)?;
             fs::write(config_path, encrypted).map_err(|e| e.to_string())?;
-            
+
             *rehash_needed = false;
         }
     }
 
     Ok(is_valid)
 }
-pub fn update_credential_internal(app_handle: &AppHandle, old_input: String, new_input: String, cred_type: String) -> Result<(), String> {
+pub fn update_credential_internal(
+    app_handle: &AppHandle,
+    old_input: String,
+    new_input: String,
+    cred_type: String,
+) -> Result<(), String> {
     let is_valid = verify_credential_internal(app_handle, old_input)?;
     if !is_valid {
         return Err("Current credential verification failed".to_string());
@@ -213,7 +233,7 @@ pub fn update_credential_internal(app_handle: &AppHandle, old_input: String, new
 
     set_credential_internal(app_handle, new_input, cred_type.clone())?;
     log_action(app_handle, "update_credential", &cred_type)?;
-    
+
     Ok(())
 }
 pub fn initialize_rehash_status(app_handle: &AppHandle) {

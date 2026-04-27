@@ -1,10 +1,6 @@
-use windows::Win32::Foundation::{HANDLE, CloseHandle};
-use windows::Win32::System::Threading::{
-    GetCurrentProcess, OpenProcessToken,
-};
-use windows::Win32::Security::{
-    GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
-};
+use windows::Win32::Foundation::{CloseHandle, HANDLE};
+use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 pub struct KillProtectionStatus {
@@ -21,14 +17,15 @@ pub fn is_elevated() -> bool {
 
         let mut elevation = TOKEN_ELEVATION::default();
         let mut size = std::mem::size_of::<TOKEN_ELEVATION>() as u32;
-        
+
         let success = GetTokenInformation(
             token,
             TokenElevation,
             Some(&mut elevation as *mut _ as *mut _),
             size,
             &mut size,
-        ).is_ok();
+        )
+        .is_ok();
 
         let _ = CloseHandle(token);
         success && elevation.TokenIsElevated != 0

@@ -1,15 +1,15 @@
+use crate::icon_extractor;
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Instant, SystemTime};
-use serde::{Serialize, Deserialize};
+use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
-use rayon::prelude::*;
-use winreg::enums::{HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER, KEY_READ};
+use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ};
 use winreg::RegKey;
-use tauri::{AppHandle, Manager, Emitter};
-use crate::icon_extractor;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ScannedApp {
@@ -60,7 +60,7 @@ const CACHE_FILE: &str = "scan_cache.json";
 pub fn start_scan_internal(app_handle: AppHandle) -> Result<String, String> {
     let scan_id = Uuid::new_v4().to_string();
     let app_handle_clone = app_handle.clone();
-    
+
     std::thread::spawn(move || {
         let _ = run_full_scan(app_handle_clone);
     });
@@ -70,17 +70,24 @@ pub fn start_scan_internal(app_handle: AppHandle) -> Result<String, String> {
 
 fn run_full_scan(app_handle: AppHandle) -> Result<(), String> {
     let start_time = Instant::now();
-    app_handle.emit("scan_progress", serde_json::json!({ "percent": 5, "current_source": "Registry" })).unwrap();
+    app_handle
+        .emit(
+            "scan_progress",
+            serde_json::json!({ "percent": 5, "current_source": "Registry" }),
+        )
+        .unwrap();
     let sources = rayon::join(
         || rayon::join(scan_registry_hklm, scan_registry_hkcu),
-        || rayon::join(
-            || rayon::join(scan_program_files, scan_program_files_x86),
-            || rayon::join(scan_appdata_local, scan_start_menu)
-        )
+        || {
+            rayon::join(
+                || rayon::join(scan_program_files, scan_program_files_x86),
+                || rayon::join(scan_appdata_local, scan_start_menu),
+            )
+        },
     );
     let mut all_results = Vec::new();
     let ((hklm, hkcu), ((pf, pfx), (al, sm))) = sources;
-    
+
     all_results.extend(hklm.unwrap_or_default());
     all_results.extend(hkcu.unwrap_or_default());
     all_results.extend(pf.unwrap_or_default());
@@ -88,33 +95,58 @@ fn run_full_scan(app_handle: AppHandle) -> Result<(), String> {
     all_results.extend(al.unwrap_or_default());
     all_results.extend(sm.unwrap_or_default());
 
-    app_handle.emit("scan_progress", serde_json::json!({ "percent": 70, "current_source": "Deduplicating" })).unwrap();
+    app_handle
+        .emit(
+            "scan_progress",
+            serde_json::json!({ "percent": 70, "current_source": "Deduplicating" }),
+        )
+        .unwrap();
     let mut apps = deduplicate_apps(all_results);
     apps.retain(|app| !is_system_process(app));
-    app_handle.emit("scan_progress", serde_json::json!({ "percent": 85, "current_source": "Extracting Icons" })).unwrap();
-    
+    app_handle
+        .emit(
+            "scan_progress",
+            serde_json::json!({ "percent": 85, "current_source": "Extracting Icons" }),
+        )
+        .unwrap();
+
     let handle_ref = &app_handle;
     apps.par_iter_mut().for_each(|app| {
-        if let Ok(ip) = icon_extractor::extract_icon_to_file(&app.executable_path, &app.id, handle_ref) {
+        if let Ok(ip) =
+            icon_extractor::extract_icon_to_file(&app.executable_path, &app.id, handle_ref)
+        {
             app.icon_path = ip;
         }
     });
     let cache = ScanCache {
-        scan_timestamp: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs(),
+        scan_timestamp: SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs(),
         app_count: apps.len(),
         entries: apps.clone(),
     };
     let _ = save_cache(&app_handle, &cache);
-    app_handle.emit("scan_complete", serde_json::json!({
-        "app_count": apps.len(),
-        "scan_duration_ms": start_time.elapsed().as_millis() as u64
-    })).unwrap();
+    app_handle
+        .emit(
+            "scan_complete",
+            serde_json::json!({
+                "app_count": apps.len(),
+                "scan_duration_ms": start_time.elapsed().as_millis() as u64
+            }),
+        )
+        .unwrap();
 
     Ok(())
 }
 
-fn scan_registry(root: RegKey, path: &str, source: ScanSource) -> Result<Vec<ScannedApp>, ScanError> {
-    let uninstall_key = root.open_subkey_with_flags(path, KEY_READ)
+fn scan_registry(
+    root: RegKey,
+    path: &str,
+    source: ScanSource,
+) -> Result<Vec<ScannedApp>, ScanError> {
+    let uninstall_key = root
+        .open_subkey_with_flags(path, KEY_READ)
         .map_err(|e| ScanError::RegistryError(e.to_string()))?;
 
     let mut apps = Vec::new();
@@ -148,20 +180,34 @@ fn scan_registry(root: RegKey, path: &str, source: ScanSource) -> Result<Vec<Sca
 }
 
 fn scan_registry_hklm() -> Result<Vec<ScannedApp>, ScanError> {
-    let mut apps = scan_registry(RegKey::predef(HKEY_LOCAL_MACHINE), "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall", ScanSource::RegistryHKLM)?;
-    if let Ok(wow) = scan_registry(RegKey::predef(HKEY_LOCAL_MACHINE), "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall", ScanSource::RegistryHKLM) {
+    let mut apps = scan_registry(
+        RegKey::predef(HKEY_LOCAL_MACHINE),
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ScanSource::RegistryHKLM,
+    )?;
+    if let Ok(wow) = scan_registry(
+        RegKey::predef(HKEY_LOCAL_MACHINE),
+        "SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ScanSource::RegistryHKLM,
+    ) {
         apps.extend(wow);
     }
     Ok(apps)
 }
 
 fn scan_registry_hkcu() -> Result<Vec<ScannedApp>, ScanError> {
-    scan_registry(RegKey::predef(HKEY_CURRENT_USER), "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall", ScanSource::RegistryHKCU)
+    scan_registry(
+        RegKey::predef(HKEY_CURRENT_USER),
+        "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall",
+        ScanSource::RegistryHKCU,
+    )
 }
 
 fn scan_dir_for_exes(base_path: &str, source: ScanSource) -> Result<Vec<ScannedApp>, ScanError> {
     let path = Path::new(base_path);
-    if !path.exists() { return Ok(Vec::new()); }
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
 
     let mut apps = Vec::new();
     let entries = fs::read_dir(path).map_err(|e| ScanError::IoError(e.to_string()))?;
@@ -188,7 +234,8 @@ fn scan_program_files() -> Result<Vec<ScannedApp>, ScanError> {
 }
 
 fn scan_program_files_x86() -> Result<Vec<ScannedApp>, ScanError> {
-    let path = env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
+    let path =
+        env::var("ProgramFiles(x86)").unwrap_or_else(|_| "C:\\Program Files (x86)".to_string());
     scan_dir_for_exes(&path, ScanSource::ProgramFilesX86)
 }
 
@@ -223,7 +270,7 @@ fn deduplicate_apps(all: Vec<ScannedApp>) -> Vec<ScannedApp> {
     let mut map: HashMap<String, ScannedApp> = HashMap::new();
     for app in all {
         let norm_path = app.executable_path.to_lowercase().replace("/", "\\");
-        
+
         if let Some(existing) = map.get(&norm_path) {
             match (&app.source, &existing.source) {
                 (ScanSource::RegistryHKLM | ScanSource::RegistryHKCU, _) => {
@@ -240,23 +287,39 @@ fn deduplicate_apps(all: Vec<ScannedApp>) -> Vec<ScannedApp> {
 
 fn is_system_process(app: &ScannedApp) -> bool {
     let p = app.executable_path.to_lowercase();
-    if p.contains("c:\\windows") { return true; }
-    
+    if p.contains("c:\\windows") {
+        return true;
+    }
+
     let system_exes = vec![
-        "svchost.exe", "lsass.exe", "csrss.exe", "winlogon.exe",
-        "taskhost.exe", "dwm.exe", "explorer.exe", "conhost.exe",
-        "runtimebroker.exe", "searchindexer.exe", "spoolsv.exe"
+        "svchost.exe",
+        "lsass.exe",
+        "csrss.exe",
+        "winlogon.exe",
+        "taskhost.exe",
+        "dwm.exe",
+        "explorer.exe",
+        "conhost.exe",
+        "runtimebroker.exe",
+        "searchindexer.exe",
+        "spoolsv.exe",
     ];
-    
+
     system_exes.iter().any(|sys| p.ends_with(sys))
 }
 fn clean_icon_path(path: &str) -> String {
     let p = path.trim_matches('\"').split(',').next().unwrap_or("");
-    if p.to_lowercase().ends_with(".exe") { p.to_string() } else { String::new() }
+    if p.to_lowercase().ends_with(".exe") {
+        p.to_string()
+    } else {
+        String::new()
+    }
 }
 
 fn find_exe_in_dir(dir: &Path, depth: u8) -> Option<PathBuf> {
-    if depth == 0 { return None; }
+    if depth == 0 {
+        return None;
+    }
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
             let p = entry.path();
@@ -269,7 +332,11 @@ fn find_exe_in_dir(dir: &Path, depth: u8) -> Option<PathBuf> {
 }
 
 fn exe_to_app(path: PathBuf, source: ScanSource) -> ScannedApp {
-    let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("Unknown").to_string();
+    let name = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("Unknown")
+        .to_string();
     ScannedApp {
         id: Uuid::new_v4().to_string(),
         name,
@@ -282,16 +349,26 @@ fn exe_to_app(path: PathBuf, source: ScanSource) -> ScannedApp {
 }
 
 fn save_cache(app_handle: &AppHandle, cache: &ScanCache) -> Result<(), String> {
-    let path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join(CACHE_FILE);
+    let path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(CACHE_FILE);
     let json = serde_json::to_string_pretty(cache).map_err(|e| e.to_string())?;
     fs::write(path, json).map_err(|e| e.to_string())?;
     Ok(())
 }
 
 pub fn get_cached_results(app_handle: &AppHandle) -> Result<Vec<ScannedApp>, String> {
-    let path = app_handle.path().app_data_dir().map_err(|e| e.to_string())?.join(CACHE_FILE);
-    if !path.exists() { return Ok(Vec::new()); }
-    
+    let path = app_handle
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join(CACHE_FILE);
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+
     let json = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let cache: ScanCache = serde_json::from_str(&json).map_err(|e| e.to_string())?;
     Ok(cache.entries)

@@ -1,6 +1,6 @@
-pub mod scanner;
-pub mod security;
+pub mod auth;
+pub mod detailed_scanner;
 pub mod monitor;
 pub mod process_win;
-pub mod detailed_scanner;
-pub mod auth;
+pub mod scanner;
+pub mod security;
